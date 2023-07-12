@@ -11,39 +11,56 @@ class MCSync(discord.Client):
     def __init__(self, *, intents, **options):
         super().__init__(intents=intents, **options)
 
-        self.chat_channel_category_name = "Text Channels"
-        self.chat_channel_name = "server-chat"
+        self.channel_category_name = "Text Channels"
+        self.console_channel_name = "server-console"
 
-        self.mc_process = MCProcess(config["launch_command"], self.on_server_message)
+        self.mc_process = MCProcess(config["launch_command"])
 
     async def on_ready(self):
         print("Logged on as", self.user)
 
         for guild in self.guilds:
-            chat_channel = discord.utils.get(guild.text_channels, name=self.chat_channel_name)
-            if not chat_channel:
+            server_channel = discord.utils.get(guild.text_channels, name=self.console_channel_name)
+            if not server_channel:
                 print("creating server chat channel")
-                text_category = discord.utils.get(guild.categories, name=self.chat_channel_category_name)
-                assert text_category is not None
-                await guild.create_text_channel("server-chat", category=text_category)
+                category = discord.utils.get(guild.categories, name=self.channel_category_name)
+                assert category is not None
+                await guild.create_text_channel(self.console_channel_name, category=category)
 
-        await self.mc_process.poll()
+        mc_process_task = asyncio.create_task(self.mc_process.poll())
+        server_data_push_task = asyncio.create_task(self.server_data_task())
 
-    async def on_server_message(self, message):
-        for guild in self.guilds:
-            chat_channel = discord.utils.get(guild.text_channels, name=self.chat_channel_name)
-            assert chat_channel is not None
+        await asyncio.gather(
+            mc_process_task,
+            server_data_push_task
+        )
 
-            await chat_channel.send(message)
+    async def server_data_task(self):
+        while True:
+            while (chunk := self.mc_process.get_chunk(1950)) is not None:
+                for guild in self.guilds:
+                    server_channel = discord.utils.get(guild.text_channels, name=self.console_channel_name)
+                    assert server_channel is not None
+
+                    await server_channel.send(
+                        "```" +
+                        chunk +
+                        "```"
+                    )
+
+            await asyncio.sleep(1)
 
     async def on_message(self, message):
         if message.author == self.user:
             return
+
+        if message.channel.name == self.console_channel_name:
+            await self.mc_process.write(message.content)
+
         if not message.content.startswith("!"):
             return
 
         command = message.content[1:]
-
         if command == 'ping':
             await message.channel.send('pong')
 
