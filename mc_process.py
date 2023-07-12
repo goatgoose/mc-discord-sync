@@ -16,8 +16,14 @@ class MCProcess:
         chunk = ""
         while len(self.line_buffer) > 0:
             line = self.line_buffer[0]
+            if len(line) + 1 > char_limit:
+                # line is too big to send any chunk, so skip it
+                self.line_buffer.pop(0)
+                continue
+
             if len(chunk) + len(line) + 1 > char_limit:
                 break
+
             chunk += line + "\n"
             self.line_buffer.pop(0)
 
