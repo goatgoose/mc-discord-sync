@@ -66,11 +66,11 @@ class MCSync(discord.Client):
     def parse_chat_message(line):
         if "[Server thread/INFO]" not in line:
             return None
-        if (username_start := line.find("<")) == -1:
+        if (username_start := line.find(": <")) == -1:
             return None
         if (username_end := line.find(">", username_start + 1)) == -1:
             return None
-        if not (username := line[username_start + 1:username_end]):
+        if not (username := line[username_start + 3:username_end]):
             return None
         if not (message := line[username_end + 1:]):
             return None
@@ -93,12 +93,36 @@ class MCSync(discord.Client):
                 message.message
             )
 
+    async def send_server_chat_message(self, message):
+        formatted_message = json.dumps([
+            "",
+            {
+                "text": f"@{message.username}: ",
+                "bold": True,
+                "italic": True,
+                "color": "aqua",
+                "hoverEvent": {
+                    "action": "show_text",
+                    "contents": "Synced from discord!"
+                }
+            },
+            {
+                "text": message.message
+            }
+        ])
+        await self.mc_process.write("tellraw @a " + formatted_message)
+
     async def on_message(self, message):
         if message.author == self.user:
             return
 
         if message.channel.name == self.console_channel_name:
             await self.mc_process.write(message.content)
+
+        if message.channel.name == self.chat_channel_name:
+            await self.send_server_chat_message(
+                ServerMessage(message.author, message.content)
+            )
 
         if not message.content.startswith("!"):
             return
