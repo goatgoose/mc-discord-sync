@@ -7,22 +7,29 @@ from mc_process import MCProcess
 config = json.load(open("config.json"))
 
 
+class ServerMessage:
+    def __init__(self, username, message):
+        self.username = username
+        self.message = message
+
+
 class MCSync(discord.Client):
     def __init__(self, *, intents, **options):
         super().__init__(intents=intents, **options)
 
         self.console_channel_name = "server-console"
+        self.chat_channel_name = "chat-sync"
+        self.channel_names = [
+            self.console_channel_name,
+            self.chat_channel_name,
+        ]
 
-        self.mc_process = MCProcess(config["launch_command"])
+        self.mc_process = MCProcess(config["launch_command"], on_message_cb=self.on_server_line)
 
     async def on_ready(self):
         print("Logged on as", self.user)
 
-        for guild in self.guilds:
-            server_channel = discord.utils.get(guild.text_channels, name=self.console_channel_name)
-            if not server_channel:
-                print("creating server console channel")
-                await guild.create_text_channel(self.console_channel_name)
+        await self.create_channels()
 
         mc_process_task = asyncio.create_task(self.mc_process.poll())
         server_data_push_task = asyncio.create_task(self.server_data_task())
@@ -31,6 +38,14 @@ class MCSync(discord.Client):
             mc_process_task,
             server_data_push_task
         )
+
+    async def create_channels(self):
+        for guild in self.guilds:
+            for channel_name in self.channel_names:
+                channel = discord.utils.get(guild.text_channels, name=channel_name)
+                if not channel:
+                    print(f"Creating {channel_name} channel")
+                    await guild.create_text_channel(channel_name)
 
     async def server_data_task(self):
         while True:
@@ -46,6 +61,37 @@ class MCSync(discord.Client):
                     )
 
             await asyncio.sleep(1)
+
+    @staticmethod
+    def parse_chat_message(line):
+        if "[Server thread/INFO]" not in line:
+            return None
+        if (username_start := line.find("<")) == -1:
+            return None
+        if (username_end := line.find(">", username_start + 1)) == -1:
+            return None
+        if not (username := line[username_start + 1:username_end]):
+            return None
+        if not (message := line[username_end + 1:]):
+            return None
+        if not (message := message.strip()):
+            return None
+
+        return ServerMessage(username, message)
+
+    async def on_server_line(self, line):
+        message = self.parse_chat_message(line)
+        if not message:
+            return
+
+        for guild in self.guilds:
+            chat_channel = discord.utils.get(guild.text_channels, name=self.chat_channel_name)
+            assert chat_channel is not None
+
+            await chat_channel.send(
+                "***@" + message.username + "***: " +
+                message.message
+            )
 
     async def on_message(self, message):
         if message.author == self.user:
