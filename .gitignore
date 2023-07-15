@@ -2,6 +2,7 @@
 .idea
 __pycache__
 config.json
+config.prod.json
 server
 start_server.sh
 

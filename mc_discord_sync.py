@@ -11,7 +11,6 @@ class MCSync(discord.Client):
     def __init__(self, *, intents, **options):
         super().__init__(intents=intents, **options)
 
-        self.channel_category_name = "Text Channels"
         self.console_channel_name = "server-console"
 
         self.mc_process = MCProcess(config["launch_command"])
@@ -22,10 +21,8 @@ class MCSync(discord.Client):
         for guild in self.guilds:
             server_channel = discord.utils.get(guild.text_channels, name=self.console_channel_name)
             if not server_channel:
-                print("creating server chat channel")
-                category = discord.utils.get(guild.categories, name=self.channel_category_name)
-                assert category is not None
-                await guild.create_text_channel(self.console_channel_name, category=category)
+                print("creating server console channel")
+                await guild.create_text_channel(self.console_channel_name)
 
         mc_process_task = asyncio.create_task(self.mc_process.poll())
         server_data_push_task = asyncio.create_task(self.server_data_task())
