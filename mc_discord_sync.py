@@ -24,6 +24,10 @@ class MCSync(discord.Client):
             self.chat_channel_name,
         ]
 
+        self.category_name = config.get("category")
+        if self.category_name is None:
+            self.category_name = "mc-server"
+
         self.mc_process = MCProcess(config["launch_command"], on_message_cb=self.on_server_line)
 
     async def on_ready(self):
@@ -41,17 +45,27 @@ class MCSync(discord.Client):
 
     async def create_channels(self):
         for guild in self.guilds:
+            category = discord.utils.get(guild.categories, name=self.category_name)
+            if not category:
+                print(f"Creating {self.category_name} category")
+                await guild.create_category(self.category_name)
+
+            category = discord.utils.get(guild.categories, name=self.category_name)
+            assert category is not None
+
             for channel_name in self.channel_names:
-                channel = discord.utils.get(guild.text_channels, name=channel_name)
+                channel = discord.utils.get(category.text_channels, name=channel_name)
                 if not channel:
                     print(f"Creating {channel_name} channel")
-                    await guild.create_text_channel(channel_name)
+                    await category.create_text_channel(channel_name)
 
     async def server_data_task(self):
         while True:
             while (chunk := self.mc_process.get_chunk(1950)) is not None:
                 for guild in self.guilds:
-                    server_channel = discord.utils.get(guild.text_channels, name=self.console_channel_name)
+                    category = discord.utils.get(guild.categories, name=self.category_name)
+                    assert category is not None
+                    server_channel = discord.utils.get(category.text_channels, name=self.console_channel_name)
                     assert server_channel is not None
 
                     await server_channel.send(
@@ -85,7 +99,9 @@ class MCSync(discord.Client):
             return
 
         for guild in self.guilds:
-            chat_channel = discord.utils.get(guild.text_channels, name=self.chat_channel_name)
+            category = discord.utils.get(guild.categories, name=self.category_name)
+            assert category is not None
+            chat_channel = discord.utils.get(category.text_channels, name=self.chat_channel_name)
             assert chat_channel is not None
 
             await chat_channel.send(
@@ -116,13 +132,22 @@ class MCSync(discord.Client):
         if message.author == self.user:
             return
 
+        channel = message.channel
+        if not channel.category:
+            return
+
+        if channel.category.name != self.category_name:
+            return
+
         if message.channel.name == self.console_channel_name:
             await self.mc_process.write(message.content)
+            return
 
         if message.channel.name == self.chat_channel_name:
             await self.send_server_chat_message(
                 ServerMessage(message.author, message.content)
             )
+            return
 
         if not message.content.startswith("!"):
             return
