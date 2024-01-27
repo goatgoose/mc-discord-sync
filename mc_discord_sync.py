@@ -1,6 +1,7 @@
 import json
-import discord
+import time
 import asyncio
+import discord
 
 from mc_process import MCProcess
 from mc_event import PlayerMessage, PlayerJoin, PlayerLeave, Shutdown
@@ -15,6 +16,8 @@ class ServerMessage:
 
 
 class MCSync(discord.Client):
+    INACTIVE_SHUTDOWN_SECONDS = 10 * 60
+
     def __init__(self, *, intents, **options):
         super().__init__(intents=intents, **options)
 
@@ -28,6 +31,12 @@ class MCSync(discord.Client):
         self.category_name = config.get("category")
         if self.category_name is None:
             self.category_name = "mc-server"
+        self.shutdown_command = config.get("shutdown_command")
+
+        self.active_players = set()
+        self.mc_process_task = None
+        self.server_data_task = None
+        self.shutdown_task = None
 
         self.mc_process = MCProcess(config["launch_command"])
         self.mc_process.listen_for_event(PlayerMessage, self.on_player_message)
@@ -40,13 +49,9 @@ class MCSync(discord.Client):
 
         await self.create_channels()
 
-        mc_process_task = asyncio.create_task(self.mc_process.poll())
-        server_data_push_task = asyncio.create_task(self.server_data_task())
-
-        await asyncio.gather(
-            mc_process_task,
-            server_data_push_task
-        )
+        self.mc_process_task = asyncio.create_task(self.mc_process.poll())
+        self.server_data_task = asyncio.create_task(self.push_server_data())
+        self.shutdown_task = asyncio.create_task(self.inactive_shutdown_timer(self.INACTIVE_SHUTDOWN_SECONDS))
 
     async def create_channels(self):
         for guild in self.guilds:
@@ -64,7 +69,7 @@ class MCSync(discord.Client):
                     print(f"Creating {channel_name} channel")
                     await category.create_text_channel(channel_name)
 
-    async def server_data_task(self):
+    async def push_server_data(self):
         while True:
             while (chunk := self.mc_process.get_chunk(1950)) is not None:
                 for guild in self.guilds:
@@ -81,6 +86,18 @@ class MCSync(discord.Client):
 
             await asyncio.sleep(1)
 
+    async def inactive_shutdown_timer(self, seconds):
+        print(f"starting shutdown timer: {seconds}")
+        try:
+            await asyncio.sleep(seconds)
+        except asyncio.CancelledError:
+            print("canceling shutdown timer")
+            return
+
+        print("shutdown timer elapsed")
+
+        await self.mc_process.write("stop")
+
     async def on_player_message(self, player_message):
         for guild in self.guilds:
             category = discord.utils.get(guild.categories, name=self.category_name)
@@ -94,13 +111,32 @@ class MCSync(discord.Client):
             )
 
     async def on_player_join(self, player_join):
-        print(f"{player_join.username} joined the game!")
+        self.active_players.add(player_join.username)
+        if self.shutdown_task:
+            self.shutdown_task.cancel()
+            self.shutdown_task = None
 
     async def on_player_leave(self, player_leave):
-        print(f"{player_leave.username} left the game.")
+        self.active_players.remove(player_leave.username)
+        if len(self.active_players) == 0:
+            self.shutdown_task = asyncio.create_task(self.inactive_shutdown_timer(self.INACTIVE_SHUTDOWN_SECONDS))
 
     async def on_shutdown(self, shutdown):
-        print("shutdown!")
+        print("shutdown")
+        if not self.shutdown_command:
+            return
+
+        shutdown_process = await asyncio.create_subprocess_exec(
+            self.shutdown_command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+
+        stdout, stderr = await shutdown_process.communicate()
+        if stdout:
+            print(stdout)
+        if stderr:
+            print(stderr)
 
     async def send_server_chat_message(self, message):
         formatted_message = json.dumps([

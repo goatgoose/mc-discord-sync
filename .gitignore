@@ -5,4 +5,5 @@ config.json
 config.prod.json
 server
 start_server.sh
+shutdown.sh
 
