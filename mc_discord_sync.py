@@ -3,6 +3,7 @@ import discord
 import asyncio
 
 from mc_process import MCProcess
+from mc_event import PlayerMessage
 
 config = json.load(open("config.json"))
 
@@ -28,7 +29,8 @@ class MCSync(discord.Client):
         if self.category_name is None:
             self.category_name = "mc-server"
 
-        self.mc_process = MCProcess(config["launch_command"], on_message_cb=self.on_server_line)
+        self.mc_process = MCProcess(config["launch_command"])
+        self.mc_process.listen_for_event(PlayerMessage, self.on_player_message)
 
     async def on_ready(self):
         print("Logged on as", self.user)
@@ -76,28 +78,7 @@ class MCSync(discord.Client):
 
             await asyncio.sleep(1)
 
-    @staticmethod
-    def parse_chat_message(line):
-        if "[Server thread/INFO]" not in line:
-            return None
-        if (username_start := line.find(": <")) == -1:
-            return None
-        if (username_end := line.find(">", username_start + 1)) == -1:
-            return None
-        if not (username := line[username_start + 3:username_end]):
-            return None
-        if not (message := line[username_end + 1:]):
-            return None
-        if not (message := message.strip()):
-            return None
-
-        return ServerMessage(username, message)
-
-    async def on_server_line(self, line):
-        message = self.parse_chat_message(line)
-        if not message:
-            return
-
+    async def on_player_message(self, message):
         for guild in self.guilds:
             category = discord.utils.get(guild.categories, name=self.category_name)
             assert category is not None
@@ -148,13 +129,6 @@ class MCSync(discord.Client):
                 ServerMessage(message.author, message.content)
             )
             return
-
-        if not message.content.startswith("!"):
-            return
-
-        command = message.content[1:]
-        if command == 'ping':
-            await message.channel.send('pong')
 
 
 intents = discord.Intents.all()
