@@ -39,7 +39,7 @@ class PlayerJoin(Event):
 
     @staticmethod
     def parse(line: str):
-        match = re.match(r"^[^<>]*: ([a-zA-Z0-9_]{2,16}) joined the game", line)
+        match = re.match(r"^[^<>*]*: ([a-zA-Z0-9_]{2,16}) joined the game", line)
         if match:
             return PlayerJoin(match.group(1))
         return None
@@ -51,7 +51,19 @@ class PlayerLeave(Event):
 
     @staticmethod
     def parse(line: str):
-        match = re.match(r"^[^<>]*: ([a-zA-Z0-9_]{2,16}) left the game", line)
+        match = re.match(r"^[^<>*]*: ([a-zA-Z0-9_]{2,16}) left the game", line)
         if match:
             return PlayerLeave(match.group(1))
+        return None
+
+
+class Shutdown(Event):
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def parse(line: str):
+        match = re.match(r"^[^<>*]*: All dimensions are saved", line)
+        if match:
+            return Shutdown()
         return None

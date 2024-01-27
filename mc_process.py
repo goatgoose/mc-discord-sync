@@ -1,7 +1,7 @@
 import asyncio
 from typing import Callable, Type
 
-from mc_event import Event, PlayerMessage, PlayerJoin, PlayerLeave
+from mc_event import Event, PlayerMessage, PlayerJoin, PlayerLeave, Shutdown
 
 
 class MCProcess:
@@ -10,7 +10,7 @@ class MCProcess:
 
         self.process = None
         self.line_buffer = []
-        self.events = [PlayerMessage, PlayerJoin, PlayerLeave]
+        self.events = [PlayerMessage, PlayerJoin, PlayerLeave, Shutdown]
         self.event_callbacks: dict[Type[Event], [Callable]] = {
             event_type: [] for event_type in self.events
         }
@@ -45,11 +45,15 @@ class MCProcess:
         assert len(chunk) > 0
         return chunk
 
-    async def _read_stream(self, steam):
+    async def _read_stream(self, stream):
         while True:
-            line = await steam.readline()
+            try:
+                line = await stream.readline()
+            except EOFError:
+                return
             if not line:
-                continue
+                return
+
             line = line.decode().strip()
             self.line_buffer.append(line)
 

@@ -3,7 +3,7 @@ import discord
 import asyncio
 
 from mc_process import MCProcess
-from mc_event import PlayerMessage, PlayerJoin, PlayerLeave
+from mc_event import PlayerMessage, PlayerJoin, PlayerLeave, Shutdown
 
 config = json.load(open("config.json"))
 
@@ -33,6 +33,7 @@ class MCSync(discord.Client):
         self.mc_process.listen_for_event(PlayerMessage, self.on_player_message)
         self.mc_process.listen_for_event(PlayerJoin, self.on_player_join)
         self.mc_process.listen_for_event(PlayerLeave, self.on_player_leave)
+        self.mc_process.listen_for_event(Shutdown, self.on_shutdown)
 
     async def on_ready(self):
         print("Logged on as", self.user)
@@ -97,6 +98,9 @@ class MCSync(discord.Client):
 
     async def on_player_leave(self, player_leave):
         print(f"{player_leave.username} left the game.")
+
+    async def on_shutdown(self, shutdown):
+        print("shutdown!")
 
     async def send_server_chat_message(self, message):
         formatted_message = json.dumps([
