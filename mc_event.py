@@ -1,5 +1,6 @@
 from enum import Enum, auto
 from abc import ABC, abstractmethod
+import re
 
 
 class Event(ABC):
@@ -30,3 +31,27 @@ class PlayerMessage(Event):
             return None
 
         return PlayerMessage(username, message)
+
+
+class PlayerJoin(Event):
+    def __init__(self, username):
+        self.username = username
+
+    @staticmethod
+    def parse(line: str):
+        match = re.match(r"^[^<>]*: ([a-zA-Z0-9_]{2,16}) joined the game", line)
+        if match:
+            return PlayerJoin(match.group(1))
+        return None
+
+
+class PlayerLeave(Event):
+    def __init__(self, username):
+        self.username = username
+
+    @staticmethod
+    def parse(line: str):
+        match = re.match(r"^[^<>]*: ([a-zA-Z0-9_]{2,16}) left the game", line)
+        if match:
+            return PlayerLeave(match.group(1))
+        return None

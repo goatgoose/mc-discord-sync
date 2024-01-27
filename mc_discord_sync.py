@@ -3,7 +3,7 @@ import discord
 import asyncio
 
 from mc_process import MCProcess
-from mc_event import PlayerMessage
+from mc_event import PlayerMessage, PlayerJoin, PlayerLeave
 
 config = json.load(open("config.json"))
 
@@ -31,6 +31,8 @@ class MCSync(discord.Client):
 
         self.mc_process = MCProcess(config["launch_command"])
         self.mc_process.listen_for_event(PlayerMessage, self.on_player_message)
+        self.mc_process.listen_for_event(PlayerJoin, self.on_player_join)
+        self.mc_process.listen_for_event(PlayerLeave, self.on_player_leave)
 
     async def on_ready(self):
         print("Logged on as", self.user)
@@ -78,7 +80,7 @@ class MCSync(discord.Client):
 
             await asyncio.sleep(1)
 
-    async def on_player_message(self, message):
+    async def on_player_message(self, player_message):
         for guild in self.guilds:
             category = discord.utils.get(guild.categories, name=self.category_name)
             assert category is not None
@@ -86,9 +88,15 @@ class MCSync(discord.Client):
             assert chat_channel is not None
 
             await chat_channel.send(
-                "***@" + message.username + "***: " +
-                message.message
+                "***@" + player_message.username + "***: " +
+                player_message.message
             )
+
+    async def on_player_join(self, player_join):
+        print(f"{player_join.username} joined the game!")
+
+    async def on_player_leave(self, player_leave):
+        print(f"{player_leave.username} left the game.")
 
     async def send_server_chat_message(self, message):
         formatted_message = json.dumps([
