@@ -138,6 +138,8 @@ class MCSync(discord.Client):
         if not self.shutdown_command:
             return
 
+        await asyncio.sleep(5)
+
         shutdown_process = await asyncio.create_subprocess_exec(
             self.shutdown_command,
             stdout=asyncio.subprocess.PIPE,
