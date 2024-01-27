@@ -23,9 +23,11 @@ class MCSync(discord.Client):
 
         self.console_channel_name = "server-console"
         self.chat_channel_name = "chat-sync"
+        self.commands_channel_name = "server-commands"
         self.channel_names = [
             self.console_channel_name,
             self.chat_channel_name,
+            self.commands_channel_name,
         ]
 
         self.category_name = config.get("category")
@@ -86,6 +88,9 @@ class MCSync(discord.Client):
 
             await asyncio.sleep(1)
 
+    async def start_shutdown(self):
+        await self.mc_process.write("stop")
+
     async def inactive_shutdown_timer(self, seconds):
         print(f"starting shutdown timer: {seconds}")
         try:
@@ -96,7 +101,7 @@ class MCSync(discord.Client):
 
         print("shutdown timer elapsed")
 
-        await self.mc_process.write("stop")
+        await self.start_shutdown()
 
     async def on_player_message(self, player_message):
         for guild in self.guilds:
@@ -177,6 +182,19 @@ class MCSync(discord.Client):
                 ServerMessage(message.author, message.content)
             )
             return
+
+        if message.channel.name == self.commands_channel_name:
+            if not message.content.startswith("!"):
+                return
+            command = message.content[1:]
+
+            if command == "stop":
+                await message.channel.send(
+                    f"Stopping {self.category_name}.\n"
+                    f"> Note: manually stopping the server is no longer necessary. The server will now automatically "
+                    f"shutdown after {self.INACTIVE_SHUTDOWN_SECONDS / 60} minutes of inactivity."
+                )
+                await self.start_shutdown()
 
 
 intents = discord.Intents.all()
