@@ -101,6 +101,13 @@ class MCSync(discord.Client):
 
         print("shutdown timer elapsed")
 
+        for guild in self.guilds:
+            category = discord.utils.get(guild.categories, name=self.category_name)
+            assert category is not None
+            commands_channel = discord.utils.get(category.text_channels, name=self.commands_channel_name)
+            assert commands_channel is not None
+            await commands_channel.send(f"Shutting down {self.category_name} due to inactivity.")
+
         await self.start_shutdown()
 
     async def on_player_message(self, player_message):
