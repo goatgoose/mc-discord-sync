@@ -67,3 +67,20 @@ class Shutdown(Event):
         if match:
             return Shutdown()
         return None
+
+
+class List(Event):
+    def __init__(self, players):
+        self.players = players
+
+    @staticmethod
+    def parse(line: str):
+        match = re.match(r"^[^<>]*: There are [0-9]+ of a max of [0-9]+ players online:(.*)", line)
+        if match:
+            players = match.group(1)
+            if not players:
+                return List([])
+
+            players = players.split(",")
+            players = [player.strip() for player in players]
+            return List(players)

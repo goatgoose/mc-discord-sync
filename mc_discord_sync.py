@@ -4,7 +4,7 @@ import asyncio
 import discord
 
 from mc_process import MCProcess
-from mc_event import PlayerMessage, PlayerJoin, PlayerLeave, Shutdown
+from mc_event import PlayerMessage, PlayerJoin, PlayerLeave, Shutdown, List
 
 config = json.load(open("config.json"))
 
@@ -36,7 +36,7 @@ class MCSync(discord.Client):
             self.category_name = "mc-server"
         self.shutdown_command = config.get("shutdown_command")
 
-        self.active_players = set()
+        self.active_players = []
         self.mc_process_task = None
         self.server_data_task = None
         self.shutdown_task = None
@@ -46,6 +46,7 @@ class MCSync(discord.Client):
         self.mc_process.listen_for_event(PlayerMessage, self.on_player_message)
         self.mc_process.listen_for_event(PlayerJoin, self.on_player_join)
         self.mc_process.listen_for_event(PlayerLeave, self.on_player_leave)
+        self.mc_process.listen_for_event(List, self.on_list)
         self.mc_process.listen_for_event(Shutdown, self.on_shutdown)
 
     async def on_ready(self):
@@ -90,6 +91,38 @@ class MCSync(discord.Client):
 
             await asyncio.sleep(1)
 
+    async def on_player_message(self, player_message):
+        for guild in self.guilds:
+            category = discord.utils.get(guild.categories, name=self.category_name)
+            assert category is not None
+            chat_channel = discord.utils.get(category.text_channels, name=self.chat_channel_name)
+            assert chat_channel is not None
+
+            await chat_channel.send(
+                "***@" + player_message.username + "***: " +
+                player_message.message
+            )
+
+    async def on_player_join(self, player_join):
+        await self.mc_process.write("list")
+
+    async def on_player_leave(self, player_leave):
+        await self.mc_process.write("list")
+
+    async def on_list(self, list_):
+        self.active_players = list_.players
+        if len(self.active_players) == 0 and self.shutdown_task is None:
+            self.shutdown_task = asyncio.create_task(self.inactive_shutdown_timer(self.INACTIVE_SHUTDOWN_SECONDS))
+        elif len(self.active_players) > 0 and self.shutdown_task is not None:
+            self.shutdown_task.cancel()
+            self.shutdown_task = None
+
+    async def on_shutdown(self, shutdown):
+        if self.force_shutdown_task:
+            self.force_shutdown_task.cancel()
+            self.force_shutdown_task = None
+        await self.shutdown()
+
     async def inactive_shutdown_timer(self, seconds):
         print(f"starting shutdown timer: {seconds}")
         try:
@@ -119,35 +152,6 @@ class MCSync(discord.Client):
         except asyncio.CancelledError:
             return
 
-        await self.shutdown()
-
-    async def on_player_message(self, player_message):
-        for guild in self.guilds:
-            category = discord.utils.get(guild.categories, name=self.category_name)
-            assert category is not None
-            chat_channel = discord.utils.get(category.text_channels, name=self.chat_channel_name)
-            assert chat_channel is not None
-
-            await chat_channel.send(
-                "***@" + player_message.username + "***: " +
-                player_message.message
-            )
-
-    async def on_player_join(self, player_join):
-        self.active_players.add(player_join.username)
-        if self.shutdown_task:
-            self.shutdown_task.cancel()
-            self.shutdown_task = None
-
-    async def on_player_leave(self, player_leave):
-        self.active_players.remove(player_leave.username)
-        if len(self.active_players) == 0:
-            self.shutdown_task = asyncio.create_task(self.inactive_shutdown_timer(self.INACTIVE_SHUTDOWN_SECONDS))
-
-    async def on_shutdown(self, shutdown):
-        if self.force_shutdown_task:
-            self.force_shutdown_task.cancel()
-            self.force_shutdown_task = None
         await self.shutdown()
 
     async def shutdown(self):

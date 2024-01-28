@@ -1,7 +1,7 @@
 import asyncio
 from typing import Callable, Type
 
-from mc_event import Event, PlayerMessage, PlayerJoin, PlayerLeave, Shutdown
+from mc_event import Event, PlayerMessage, PlayerJoin, PlayerLeave, Shutdown, List
 
 
 class MCProcess:
@@ -10,7 +10,7 @@ class MCProcess:
 
         self.process = None
         self.line_buffer = []
-        self.events = [PlayerMessage, PlayerJoin, PlayerLeave, Shutdown]
+        self.events = [PlayerMessage, PlayerJoin, PlayerLeave, Shutdown, List]
         self.event_callbacks: dict[Type[Event], [Callable]] = {
             event_type: [] for event_type in self.events
         }
