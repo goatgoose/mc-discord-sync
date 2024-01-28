@@ -4,7 +4,7 @@ import asyncio
 import discord
 
 from mc_process import MCProcess
-from mc_event import PlayerMessage, PlayerJoin, PlayerLeave, Shutdown, List
+from mc_event import PlayerMessage, PlayerJoin, PlayerLeave, Shutdown, List, Trigger
 
 config = json.load(open("config.json"))
 
@@ -50,6 +50,7 @@ class MCSync(discord.Client):
         self.mc_process.listen_for_event(PlayerLeave, self.on_player_leave)
         self.mc_process.listen_for_event(List, self.on_list)
         self.mc_process.listen_for_event(Shutdown, self.on_shutdown)
+        self.mc_process.listen_for_event(Trigger, self.on_trigger)
 
     async def send_discord_message(self, channel_name, message):
         for guild in self.guilds:
@@ -111,18 +112,22 @@ class MCSync(discord.Client):
             await self.mc_process.write("list")
 
     async def on_player_message(self, player_message):
+        print(f"player message: {player_message.message}")
         await self.send_discord_message(
             self.chat_channel_name,
             "***@" + player_message.username + "***: " + player_message.message
         )
 
     async def on_player_join(self, player_join):
+        print(f"player joined: {player_join.username}")
         await self.mc_process.write("list")
 
     async def on_player_leave(self, player_leave):
+        print(f"player left: {player_leave.username}")
         await self.mc_process.write("list")
 
     async def on_list(self, list_):
+        print(f"list: {list_.players}")
         self.last_list_received_time = time.time()
         self.active_players = list_.players
         if len(self.active_players) == 0 and self.shutdown_task is None:
@@ -132,7 +137,11 @@ class MCSync(discord.Client):
             self.shutdown_task = None
 
     async def on_shutdown(self, shutdown):
+        print("shutdown")
         await self.shutdown()
+
+    async def on_trigger(self, trigger):
+        print(f"{trigger.username} triggered {trigger.objective} with {trigger.value}")
 
     async def inactive_shutdown_timer(self, seconds):
         print(f"starting shutdown timer: {seconds}")
@@ -155,6 +164,13 @@ class MCSync(discord.Client):
         await self.mc_process.write("stop")
 
     async def shutdown(self):
+        if self.list_heartbeat_task:
+            self.list_heartbeat_task.cancel()
+            self.list_heartbeat_task = None
+        if self.shutdown_task:
+            self.shutdown_task.cancel()
+            self.shutdown_task = None
+
         if not self.shutdown_command:
             return
 

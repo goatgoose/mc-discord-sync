@@ -84,3 +84,31 @@ class List(Event):
             players = players.split(",")
             players = [player.strip() for player in players]
             return List(players)
+
+
+class Trigger(Event):
+    def __init__(self, username, objective, add_, set_):
+        self.username = username
+        self.objective = objective
+        self.add = add_
+        self.set = set_
+        self.value = self.add if self.add else self.set
+
+    @staticmethod
+    def parse(line: str):
+        # [14:33:17] [Server thread/INFO]: [goatgoose1142: Triggered [test] (added 11 to value)]
+        # [14:32:56] [Server thread/INFO]: [goatgoose1142: Triggered [test] (set value to 1)]
+        match = re.match(
+            r"^[^<>]*: \["
+            r"([a-zA-Z0-9_]{2,16}): "
+            r"Triggered \[([a-zA-Z0-9_]+)\] "
+            r"\((?:added ([0-9]+) to value|set value to ([0-9]+))\)"
+            r"\]",
+            line
+        )
+        if match:
+            username = match.group(1)
+            objective = match.group(2)
+            add_ = match.group(3)
+            set_ = match.group(4)
+            return Trigger(username, objective, add_, set_)
