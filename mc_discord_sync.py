@@ -17,7 +17,7 @@ class ServerMessage:
 
 class MCSync(discord.Client):
     INACTIVE_SHUTDOWN_SECONDS = 10 * 60
-    FORCE_SHUTDOWN_SECONDS = 20
+    SERVER_HEARTBEAT_SECONDS = 30
 
     def __init__(self, *, intents, **options):
         super().__init__(intents=intents, **options)
@@ -40,7 +40,9 @@ class MCSync(discord.Client):
         self.mc_process_task = None
         self.server_data_task = None
         self.shutdown_task = None
-        self.force_shutdown_task = None
+
+        self.list_heartbeat_task = None
+        self.last_list_received_time = None
 
         self.mc_process = MCProcess(config["launch_command"])
         self.mc_process.listen_for_event(PlayerMessage, self.on_player_message)
@@ -48,6 +50,14 @@ class MCSync(discord.Client):
         self.mc_process.listen_for_event(PlayerLeave, self.on_player_leave)
         self.mc_process.listen_for_event(List, self.on_list)
         self.mc_process.listen_for_event(Shutdown, self.on_shutdown)
+
+    async def send_discord_message(self, channel_name, message):
+        for guild in self.guilds:
+            category = discord.utils.get(guild.categories, name=self.category_name)
+            assert category is not None
+            channel = discord.utils.get(category.text_channels, name=channel_name)
+            assert channel is not None
+            await channel.send(message)
 
     async def on_ready(self):
         print("Logged on as", self.user)
@@ -57,6 +67,7 @@ class MCSync(discord.Client):
         self.mc_process_task = asyncio.create_task(self.mc_process.poll())
         self.server_data_task = asyncio.create_task(self.push_server_data())
         self.shutdown_task = asyncio.create_task(self.inactive_shutdown_timer(self.INACTIVE_SHUTDOWN_SECONDS))
+        self.list_heartbeat_task = asyncio.create_task(self.list_heartbeat())
 
     async def create_channels(self):
         for guild in self.guilds:
@@ -77,31 +88,33 @@ class MCSync(discord.Client):
     async def push_server_data(self):
         while True:
             while (chunk := self.mc_process.get_chunk(1950)) is not None:
-                for guild in self.guilds:
-                    category = discord.utils.get(guild.categories, name=self.category_name)
-                    assert category is not None
-                    server_channel = discord.utils.get(category.text_channels, name=self.console_channel_name)
-                    assert server_channel is not None
-
-                    await server_channel.send(
-                        "```" +
-                        chunk +
-                        "```"
-                    )
-
+                await self.send_discord_message(
+                    self.console_channel_name,
+                    "```" +
+                    chunk +
+                    "```"
+                )
             await asyncio.sleep(1)
 
-    async def on_player_message(self, player_message):
-        for guild in self.guilds:
-            category = discord.utils.get(guild.categories, name=self.category_name)
-            assert category is not None
-            chat_channel = discord.utils.get(category.text_channels, name=self.chat_channel_name)
-            assert chat_channel is not None
+    async def list_heartbeat(self):
+        self.last_list_received_time = time.time()
+        while True:
+            if time.time() - self.last_list_received_time > self.SERVER_HEARTBEAT_SECONDS * 1.5:
+                await self.send_discord_message(
+                    self.commands_channel_name,
+                    f"Shutting down {self.category_name} due to losing connection with the server."
+                )
+                await self.shutdown()
+                return
 
-            await chat_channel.send(
-                "***@" + player_message.username + "***: " +
-                player_message.message
-            )
+            await asyncio.sleep(self.SERVER_HEARTBEAT_SECONDS)
+            await self.mc_process.write("list")
+
+    async def on_player_message(self, player_message):
+        await self.send_discord_message(
+            self.chat_channel_name,
+            "***@" + player_message.username + "***: " + player_message.message
+        )
 
     async def on_player_join(self, player_join):
         await self.mc_process.write("list")
@@ -110,6 +123,7 @@ class MCSync(discord.Client):
         await self.mc_process.write("list")
 
     async def on_list(self, list_):
+        self.last_list_received_time = time.time()
         self.active_players = list_.players
         if len(self.active_players) == 0 and self.shutdown_task is None:
             self.shutdown_task = asyncio.create_task(self.inactive_shutdown_timer(self.INACTIVE_SHUTDOWN_SECONDS))
@@ -118,9 +132,6 @@ class MCSync(discord.Client):
             self.shutdown_task = None
 
     async def on_shutdown(self, shutdown):
-        if self.force_shutdown_task:
-            self.force_shutdown_task.cancel()
-            self.force_shutdown_task = None
         await self.shutdown()
 
     async def inactive_shutdown_timer(self, seconds):
@@ -133,26 +144,15 @@ class MCSync(discord.Client):
 
         print("shutdown timer elapsed")
 
-        for guild in self.guilds:
-            category = discord.utils.get(guild.categories, name=self.category_name)
-            assert category is not None
-            commands_channel = discord.utils.get(category.text_channels, name=self.commands_channel_name)
-            assert commands_channel is not None
-            await commands_channel.send(f"Shutting down {self.category_name} due to inactivity.")
+        await self.send_discord_message(
+            self.commands_channel_name,
+            f"Shutting down {self.category_name} due to inactivity."
+        )
 
         await self.start_shutdown()
 
     async def start_shutdown(self):
-        self.force_shutdown_task = asyncio.create_task(self.force_shutdown())
         await self.mc_process.write("stop")
-
-    async def force_shutdown(self):
-        try:
-            await asyncio.sleep(self.FORCE_SHUTDOWN_SECONDS)
-        except asyncio.CancelledError:
-            return
-
-        await self.shutdown()
 
     async def shutdown(self):
         if not self.shutdown_command:
