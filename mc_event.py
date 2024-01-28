@@ -10,6 +10,18 @@ class Event(ABC):
         pass
 
 
+class Done(Event):
+    def __init__(self, init_time):
+        self.init_time = init_time
+
+    @staticmethod
+    def parse(line: str):
+        # [15:20:41] [Server thread/INFO]: Done (3.854s)! For help, type "help"
+        match = re.match(r'^[^<>]*: Done \(([0-9.sm]+)\)! For help, type "help"', line)
+        if match:
+            return Done(match.group(1))
+
+
 class PlayerMessage(Event):
     def __init__(self, username, message):
         self.username = username
@@ -90,19 +102,20 @@ class Trigger(Event):
     def __init__(self, username, objective, add_, set_):
         self.username = username
         self.objective = objective
-        self.add = add_
-        self.set = set_
+        self.add = int(add_) if add_ else None
+        self.set = int(set_) if set_ else None
         self.value = self.add if self.add else self.set
 
     @staticmethod
     def parse(line: str):
+        # [15:58:36] [Server thread/INFO]: [goatgoose1142: Triggered [test]]
         # [14:33:17] [Server thread/INFO]: [goatgoose1142: Triggered [test] (added 11 to value)]
         # [14:32:56] [Server thread/INFO]: [goatgoose1142: Triggered [test] (set value to 1)]
         match = re.match(
             r"^[^<>]*: \["
             r"([a-zA-Z0-9_]{2,16}): "
-            r"Triggered \[([a-zA-Z0-9_]+)\] "
-            r"\((?:added ([0-9]+) to value|set value to ([0-9]+))\)"
+            r"Triggered \[([a-zA-Z0-9_]+)\] ?"
+            r"\(?(?:added ([0-9]+) to value|set value to ([0-9]+))?\)?"
             r"\]",
             line
         )

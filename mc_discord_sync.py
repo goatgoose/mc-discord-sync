@@ -2,17 +2,41 @@ import json
 import time
 import asyncio
 import discord
+import csv
+import pathlib
 
 from mc_process import MCProcess
-from mc_event import PlayerMessage, PlayerJoin, PlayerLeave, Shutdown, List, Trigger
+from mc_event import Done, PlayerMessage, PlayerJoin, PlayerLeave, Shutdown, List, Trigger
 
-config = json.load(open("config.json"))
+mc_discord_dir = pathlib.Path(__file__).parent.resolve()
+config = json.load(open(f"{mc_discord_dir}/config.json"))
 
 
 class ServerMessage:
     def __init__(self, username, message):
         self.username = username
         self.message = message
+
+
+class Emote:
+    def __init__(self, command, local_general, local_target, global_general, global_target):
+        self.command = command
+        self.local_general = local_general
+        self.local_target = local_target
+        self.global_general = global_general
+        self.global_target = global_target
+
+    def local_general_message(self):
+        return self.local_general
+
+    def local_target_message(self, target):
+        return self.local_target.replace("(Target)", target)
+
+    def global_general_message(self, player):
+        return self.global_general.replace("(Player)", player)
+
+    def global_target_message(self, player, target):
+        return self.global_target.replace("(Player)", player).replace("(Target)", target)
 
 
 class MCSync(discord.Client):
@@ -40,11 +64,24 @@ class MCSync(discord.Client):
         self.mc_process_task = None
         self.server_data_task = None
         self.shutdown_task = None
+        self.init_objectives_task = None
 
         self.list_heartbeat_task = None
         self.last_list_received_time = None
 
+        self.emotes = {}
+        with open(f"{mc_discord_dir}/emotes.csv") as emote_file:
+            reader = csv.reader(emote_file)
+            for row in reader:
+                command = row[0]
+                local_general = row[1]
+                local_target = row[2]
+                global_general = row[3]
+                global_target = row[4]
+                self.emotes[command] = Emote(command, local_general, local_target, global_general, global_target)
+
         self.mc_process = MCProcess(config["launch_command"])
+        self.mc_process.listen_for_event(Done, self.on_done)
         self.mc_process.listen_for_event(PlayerMessage, self.on_player_message)
         self.mc_process.listen_for_event(PlayerJoin, self.on_player_join)
         self.mc_process.listen_for_event(PlayerLeave, self.on_player_leave)
@@ -67,8 +104,6 @@ class MCSync(discord.Client):
 
         self.mc_process_task = asyncio.create_task(self.mc_process.poll())
         self.server_data_task = asyncio.create_task(self.push_server_data())
-        self.shutdown_task = asyncio.create_task(self.inactive_shutdown_timer(self.INACTIVE_SHUTDOWN_SECONDS))
-        self.list_heartbeat_task = asyncio.create_task(self.list_heartbeat())
 
     async def create_channels(self):
         for guild in self.guilds:
@@ -97,19 +132,11 @@ class MCSync(discord.Client):
                 )
             await asyncio.sleep(1)
 
-    async def list_heartbeat(self):
-        self.last_list_received_time = time.time()
-        while True:
-            if time.time() - self.last_list_received_time > self.SERVER_HEARTBEAT_SECONDS * 1.5:
-                await self.send_discord_message(
-                    self.commands_channel_name,
-                    f"Shutting down {self.category_name} due to losing connection with the server."
-                )
-                await self.shutdown()
-                return
-
-            await asyncio.sleep(self.SERVER_HEARTBEAT_SECONDS)
-            await self.mc_process.write("list")
+    async def on_done(self, done):
+        print(f"done: {done.init_time}")
+        self.shutdown_task = asyncio.create_task(self.inactive_shutdown_timer(self.INACTIVE_SHUTDOWN_SECONDS))
+        self.list_heartbeat_task = asyncio.create_task(self.list_heartbeat())
+        self.init_objectives_task = asyncio.create_task(self.init_objectives())
 
     async def on_player_message(self, player_message):
         print(f"player message: {player_message.message}")
@@ -121,6 +148,8 @@ class MCSync(discord.Client):
     async def on_player_join(self, player_join):
         print(f"player joined: {player_join.username}")
         await self.mc_process.write("list")
+        for emote in self.emotes.values():
+            await self.mc_process.write(f"scoreboard players enable {player_join.username} {emote.command}")
 
     async def on_player_leave(self, player_leave):
         print(f"player left: {player_leave.username}")
@@ -142,6 +171,33 @@ class MCSync(discord.Client):
 
     async def on_trigger(self, trigger):
         print(f"{trigger.username} triggered {trigger.objective} with {trigger.value}")
+        await self.mc_process.write(f"scoreboard players enable {trigger.username} {trigger.objective}")
+
+        emote = self.emotes[trigger.objective]
+        message = emote.global_general_message(trigger.username)
+        if trigger.value is not None and 0 <= trigger.value < len(self.active_players):
+            message = emote.global_target_message(trigger.username, self.active_players[trigger.value])
+
+        await self.mc_process.write(f"tellraw @a {json.dumps([{'text': message}])}")
+        await self.send_discord_message(self.chat_channel_name, message)
+
+    async def list_heartbeat(self):
+        self.last_list_received_time = time.time()
+        while True:
+            if time.time() - self.last_list_received_time > self.SERVER_HEARTBEAT_SECONDS * 1.5:
+                await self.send_discord_message(
+                    self.commands_channel_name,
+                    f"Shutting down {self.category_name} due to losing connection with the server."
+                )
+                await self.shutdown()
+                return
+
+            await asyncio.sleep(self.SERVER_HEARTBEAT_SECONDS)
+            await self.mc_process.write("list")
+
+    async def init_objectives(self):
+        for emote in self.emotes.values():
+            await self.mc_process.write(f"scoreboard objectives add {emote.command} trigger")
 
     async def inactive_shutdown_timer(self, seconds):
         print(f"starting shutdown timer: {seconds}")
