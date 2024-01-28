@@ -17,6 +17,7 @@ class ServerMessage:
 
 class MCSync(discord.Client):
     INACTIVE_SHUTDOWN_SECONDS = 10 * 60
+    FORCE_SHUTDOWN_SECONDS = 20
 
     def __init__(self, *, intents, **options):
         super().__init__(intents=intents, **options)
@@ -39,6 +40,7 @@ class MCSync(discord.Client):
         self.mc_process_task = None
         self.server_data_task = None
         self.shutdown_task = None
+        self.force_shutdown_task = None
 
         self.mc_process = MCProcess(config["launch_command"])
         self.mc_process.listen_for_event(PlayerMessage, self.on_player_message)
@@ -88,9 +90,6 @@ class MCSync(discord.Client):
 
             await asyncio.sleep(1)
 
-    async def start_shutdown(self):
-        await self.mc_process.write("stop")
-
     async def inactive_shutdown_timer(self, seconds):
         print(f"starting shutdown timer: {seconds}")
         try:
@@ -109,6 +108,18 @@ class MCSync(discord.Client):
             await commands_channel.send(f"Shutting down {self.category_name} due to inactivity.")
 
         await self.start_shutdown()
+
+    async def start_shutdown(self):
+        self.force_shutdown_task = asyncio.create_task(self.force_shutdown())
+        await self.mc_process.write("stop")
+
+    async def force_shutdown(self):
+        try:
+            await asyncio.sleep(self.FORCE_SHUTDOWN_SECONDS)
+        except asyncio.CancelledError:
+            return
+
+        await self.shutdown()
 
     async def on_player_message(self, player_message):
         for guild in self.guilds:
@@ -134,7 +145,12 @@ class MCSync(discord.Client):
             self.shutdown_task = asyncio.create_task(self.inactive_shutdown_timer(self.INACTIVE_SHUTDOWN_SECONDS))
 
     async def on_shutdown(self, shutdown):
-        print("shutdown")
+        if self.force_shutdown_task:
+            self.force_shutdown_task.cancel()
+            self.force_shutdown_task = None
+        await self.shutdown()
+
+    async def shutdown(self):
         if not self.shutdown_command:
             return
 
