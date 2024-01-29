@@ -4,6 +4,7 @@ import asyncio
 import discord
 import csv
 import pathlib
+import random
 
 from mc_process import MCProcess
 from mc_event import Done, PlayerMessage, PlayerJoin, PlayerLeave, Shutdown, List, Trigger
@@ -69,6 +70,7 @@ class MCSync(discord.Client):
         self.list_heartbeat_task = None
         self.last_list_received_time = None
 
+        self.objectives = {"roll"}
         self.emotes = {}
         with open(f"{mc_discord_dir}/emotes.csv") as emote_file:
             reader = csv.reader(emote_file)
@@ -79,6 +81,7 @@ class MCSync(discord.Client):
                 global_general = row[3]
                 global_target = row[4]
                 self.emotes[command] = Emote(command, local_general, local_target, global_general, global_target)
+                self.objectives.add(command)
 
         self.mc_process = MCProcess(config["launch_command"])
         self.mc_process.listen_for_event(Done, self.on_done)
@@ -148,8 +151,8 @@ class MCSync(discord.Client):
     async def on_player_join(self, player_join):
         print(f"player joined: {player_join.username}")
         await self.mc_process.write("list")
-        for emote in self.emotes.values():
-            await self.mc_process.write(f"scoreboard players enable {player_join.username} {emote.command}")
+        for objective in self.objectives:
+            await self.mc_process.write(f"scoreboard players enable {player_join.username} {objective}")
 
     async def on_player_leave(self, player_leave):
         print(f"player left: {player_leave.username}")
@@ -173,10 +176,16 @@ class MCSync(discord.Client):
         print(f"{trigger.username} triggered {trigger.objective} with {trigger.value}")
         await self.mc_process.write(f"scoreboard players enable {trigger.username} {trigger.objective}")
 
-        emote = self.emotes[trigger.objective]
-        message = emote.global_general_message(trigger.username)
-        if trigger.value is not None and 0 <= trigger.value < len(self.active_players):
-            message = emote.global_target_message(trigger.username, self.active_players[trigger.value])
+        message = None
+        if trigger.objective in self.emotes:
+            emote = self.emotes[trigger.objective]
+            message = emote.global_general_message(trigger.username)
+            if trigger.value is not None and 0 <= trigger.value < len(self.active_players):
+                message = emote.global_target_message(trigger.username, self.active_players[trigger.value])
+        elif trigger.objective == "roll":
+            roll = random.randint(1, 100)
+            message = f"{trigger.username} rolls {roll} (1-100)"
+        assert message is not None
 
         await self.mc_process.write(f"tellraw @a {json.dumps([{'text': message}])}")
         await self.send_discord_message(self.chat_channel_name, message)
@@ -196,8 +205,8 @@ class MCSync(discord.Client):
             await self.mc_process.write("list")
 
     async def init_objectives(self):
-        for emote in self.emotes.values():
-            await self.mc_process.write(f"scoreboard objectives add {emote.command} trigger")
+        for objective in self.objectives:
+            await self.mc_process.write(f"scoreboard objectives add {objective} trigger")
 
     async def inactive_shutdown_timer(self, seconds):
         print(f"starting shutdown timer: {seconds}")
