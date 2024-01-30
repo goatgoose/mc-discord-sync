@@ -298,6 +298,11 @@ class MCSync(discord.Client):
                     f"shutdown after {self.INACTIVE_SHUTDOWN_SECONDS / 60} minutes of inactivity."
                 )
                 await self.start_shutdown()
+            if command == "kill":
+                await message.channel.send(
+                    f"Forcefully stopping {self.category_name}.\n"
+                )
+                await self.shutdown()
 
 
 intents = discord.Intents.all()
