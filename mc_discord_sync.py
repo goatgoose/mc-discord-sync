@@ -229,13 +229,6 @@ class MCSync(discord.Client):
         await self.mc_process.write("stop")
 
     async def shutdown(self):
-        if self.list_heartbeat_task:
-            self.list_heartbeat_task.cancel()
-            self.list_heartbeat_task = None
-        if self.shutdown_task:
-            self.shutdown_task.cancel()
-            self.shutdown_task = None
-
         if not self.shutdown_command:
             return
 
