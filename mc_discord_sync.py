@@ -196,7 +196,7 @@ class MCSync(discord.Client):
             if time.time() - self.last_list_received_time > self.SERVER_HEARTBEAT_SECONDS * 1.5:
                 await self.send_discord_message(
                     self.commands_channel_name,
-                    f"Shutting down {self.category_name} due to losing connection with the server. Use `!start` to"
+                    f"Shutting down {self.category_name} due to losing connection with the server. Use `!start` to "
                     f"reboot the instance after shutdown."
                 )
                 await self.shutdown()
