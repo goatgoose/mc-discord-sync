@@ -69,7 +69,7 @@ flap,"With arms flapping, you strut around. Cluck, Cluck, Chicken!","With arms f
 flee,You yell for everyone to flee!,,(Player) yells for everyone to flee!,
 flex,You flex your muscles. Oooooh so strong!,You flex at (Target). Oooooh so strong!,(Player) flexes their muscles. Oooooh so strong!,(Player) flexes at (Target). Oooooh so strong!
 flirt,You flirt.,You flirt with (Target).,(Player) firts.,(Player) flirts with (Target).
-flop,You flop about helplessly.,You flop about helplessly around (Target).,(Player) fops about helplessly.,(Player) flops about helplessly around (Target).
+flop,You flop about helplessly.,You flop about helplessly around (Target).,(Player) flops about helplessly.,(Player) flops about helplessly around (Target).
 followme,You motion for everyone to follow.,You motion for (Target) to follow.,(Player) motions for everyone to follow.,(Player) motions for (Target) to follow.
 food,You are hungry!,You are hungry. Maybe (Target) has some food...,(Player) is hungry!,(Player) is hungry. Maybe (Target) has some food...
 frown,You frown.,You frown with disappointment at (Target).,(Player) frowns.,(Player) frowns with disappointment at (Target).
