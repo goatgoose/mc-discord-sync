@@ -180,8 +180,10 @@ class MCSync(discord.Client):
         if trigger.objective in self.emotes:
             emote = self.emotes[trigger.objective]
             message = emote.global_general_message(trigger.username)
-            if trigger.value is not None and 0 <= trigger.value < len(self.active_players):
-                message = emote.global_target_message(trigger.username, self.active_players[trigger.value])
+            if trigger.value is not None:
+                player_index = trigger.value - 1
+                if 0 <= player_index < len(self.active_players):
+                    message = emote.global_target_message(trigger.username, self.active_players[player_index])
         elif trigger.objective == "roll":
             roll = random.randint(1, 100)
             message = f"{trigger.username} rolls {roll} (1-100)"
