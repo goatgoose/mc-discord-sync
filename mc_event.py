@@ -125,3 +125,47 @@ class Trigger(Event):
             add_ = match.group(3)
             set_ = match.group(4)
             return Trigger(username, objective, add_, set_)
+
+
+class WhitelistAdd(Event):
+    def __init__(self, username):
+        self.username = username
+
+    @staticmethod
+    def parse(line: str):
+        player_added_match = re.match(
+            r"^[^<>]*: Added ([a-zA-Z0-9_]{2,16}) to the whitelist",
+            line
+        )
+        if player_added_match:
+            username = player_added_match.group(1)
+            return WhitelistAdd(username)
+
+        already_whitelisted_match = re.match(
+            r"^[^<>]*: Player is already whitelisted",
+            line
+        )
+        if already_whitelisted_match:
+            return WhitelistAdd(None)
+
+
+class WhitelistRemove(Event):
+    def __init__(self, username):
+        self.username = username
+
+    @staticmethod
+    def parse(line: str):
+        player_removed_match = re.match(
+            r"^[^<>]*: Removed ([a-zA-Z0-9_]{2,16}) from the whitelist",
+            line
+        )
+        if player_removed_match:
+            username = player_removed_match.group(1)
+            return WhitelistRemove(username)
+
+        player_not_whitelisted_match = re.match(
+            r"^[^<>]*: Player is not whitelisted",
+            line
+        )
+        if player_not_whitelisted_match:
+            return WhitelistRemove(None)

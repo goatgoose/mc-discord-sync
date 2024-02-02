@@ -7,7 +7,8 @@ import pathlib
 import random
 
 from mc_process import MCProcess
-from mc_event import Done, PlayerMessage, PlayerJoin, PlayerLeave, Shutdown, List, Trigger
+from mc_event import Done, PlayerMessage, PlayerJoin, PlayerLeave, Shutdown, List, \
+    Trigger, WhitelistAdd, WhitelistRemove
 
 mc_discord_dir = pathlib.Path(__file__).parent.resolve()
 config = json.load(open(f"{mc_discord_dir}/config.json"))
@@ -91,6 +92,8 @@ class MCSync(discord.Client):
         self.mc_process.listen_for_event(List, self.on_list)
         self.mc_process.listen_for_event(Shutdown, self.on_shutdown)
         self.mc_process.listen_for_event(Trigger, self.on_trigger)
+        self.mc_process.listen_for_event(WhitelistAdd, self.on_whitelist_add)
+        self.mc_process.listen_for_event(WhitelistRemove, self.on_whitelist_remove)
 
     async def send_discord_message(self, channel_name, message):
         for guild in self.guilds:
@@ -192,6 +195,22 @@ class MCSync(discord.Client):
         await self.mc_process.write(f"tellraw @a {json.dumps([{'text': message}])}")
         await self.send_discord_message(self.chat_channel_name, message)
 
+    async def on_whitelist_add(self, whitelist_add):
+        if whitelist_add.username:
+            message = f"Added {whitelist_add.username} to the whitelist."
+        else:
+            message = "Player is already whitelisted."
+        print(message)
+        await self.send_discord_message(self.commands_channel_name, message)
+
+    async def on_whitelist_remove(self, whitelist_remove):
+        if whitelist_remove.username:
+            message = f"Remove {whitelist_remove.username} from the whitelist."
+        else:
+            message = "Player is not whitelisted."
+        print(message)
+        await self.send_discord_message(self.commands_channel_name, message)
+
     async def list_heartbeat(self):
         self.last_list_received_time = time.time()
         while True:
@@ -292,7 +311,12 @@ class MCSync(discord.Client):
         if message.channel.name == self.commands_channel_name:
             if not message.content.startswith("!"):
                 return
-            command = message.content[1:]
+            command_split = [
+                arg.strip() for arg in
+                message.content[1:].split()
+            ]
+            command = command_split[0]
+            args = command_split[1:]
 
             if command == "stop":
                 await message.channel.send(
@@ -306,6 +330,28 @@ class MCSync(discord.Client):
                     f"Forcefully stopping {self.category_name}.\n"
                 )
                 await self.shutdown()
+            if command == "whitelist":
+                invalid_usage_message = f"Usage:\n" \
+                                        f"`!whitelist <add/remove> <player>`"
+                if len(args) != 2:
+                    await message.channel.send(invalid_usage_message)
+                    return
+
+                add_remove = args[0]
+                player = args[1]
+                if add_remove == "add":
+                    await message.channel.send(
+                        f"Whitelisting {player}..."
+                    )
+                    await self.mc_process.write(f"whitelist add {player}")
+                elif add_remove == "remove":
+                    await message.channel.send(
+                        f"Removing {player} from whitelist..."
+                    )
+                    await self.mc_process.write(f"whitelist remove {player}")
+                else:
+                    await message.channel.send(invalid_usage_message)
+                    return
 
 
 intents = discord.Intents.all()
