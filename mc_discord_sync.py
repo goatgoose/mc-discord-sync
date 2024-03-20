@@ -8,7 +8,8 @@ import random
 
 from mc_process import MCProcess
 from mc_event import Done, PlayerMessage, PlayerJoin, PlayerLeave, Shutdown, List, \
-    Trigger, WhitelistAdd, WhitelistRemove
+    Trigger, WhitelistAdd, WhitelistRemove, GodQuestion
+from bedrock import God
 
 mc_discord_dir = pathlib.Path(__file__).parent.resolve()
 config = json.load(open(f"{mc_discord_dir}/config.json"))
@@ -94,6 +95,12 @@ class MCSync(discord.Client):
         self.mc_process.listen_for_event(Trigger, self.on_trigger)
         self.mc_process.listen_for_event(WhitelistAdd, self.on_whitelist_add)
         self.mc_process.listen_for_event(WhitelistRemove, self.on_whitelist_remove)
+        self.mc_process.listen_for_event(GodQuestion, self.on_god_question)
+
+        self.god = None
+        if God.available():
+            print("God is available")
+            self.god = God()
 
     async def send_discord_message(self, channel_name, message):
         for guild in self.guilds:
@@ -210,6 +217,36 @@ class MCSync(discord.Client):
             message = "Player is not whitelisted."
         print(message)
         await self.send_discord_message(self.commands_channel_name, message)
+
+    async def on_god_question(self, god_question):
+        print(f"god message: {god_question.question}")
+        if not self.god:
+            print("God not found")
+            return
+
+        reply = await asyncio.to_thread(self.god.ask, god_question.question)
+
+        reply = reply.replace("\"", "")
+        reply = reply.strip()
+
+        formatted_message = json.dumps([
+            "",
+            {
+                "text": "[God]: ",
+                "bold": True,
+                "italic": True,
+                "color": "dark_green",
+            },
+            {
+                "text": reply
+            }
+        ])
+        await self.mc_process.write("tellraw @a " + formatted_message)
+
+        await self.send_discord_message(
+            self.chat_channel_name,
+            f"***[God]***: {reply}"
+        )
 
     async def list_heartbeat(self):
         self.last_list_received_time = time.time()

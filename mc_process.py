@@ -2,7 +2,7 @@ import asyncio
 from typing import Callable, Type
 
 from mc_event import Event, Done, PlayerMessage, PlayerJoin, \
-    PlayerLeave, Shutdown, List, Trigger, WhitelistAdd, WhitelistRemove
+    PlayerLeave, Shutdown, List, Trigger, WhitelistAdd, WhitelistRemove, GodQuestion
 
 
 class MCProcess:
@@ -20,7 +20,8 @@ class MCProcess:
             List,
             Trigger,
             WhitelistAdd,
-            WhitelistRemove
+            WhitelistRemove,
+            GodQuestion
         ]
         self.event_callbacks: dict[Type[Event], [Callable]] = {
             event_type: [] for event_type in self.events

@@ -169,3 +169,22 @@ class WhitelistRemove(Event):
         )
         if player_not_whitelisted_match:
             return WhitelistRemove(None)
+
+
+class GodQuestion(Event):
+    def __init__(self, username, question):
+        self.username = username
+        self.question = question
+
+    @staticmethod
+    def parse(line: str):
+        player_message = PlayerMessage.parse(line)
+        if player_message is None:
+            return None
+
+        if not player_message.message.lower().startswith("god"):
+            return None
+        if not player_message.message.lower().endswith("?"):
+            return None
+
+        return GodQuestion(player_message.username, player_message.message)
