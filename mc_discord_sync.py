@@ -232,7 +232,7 @@ class MCSync(discord.Client):
         formatted_message = json.dumps([
             "",
             {
-                "text": "[God]: ",
+                "text": "<God> ",
                 "bold": True,
                 "italic": True,
                 "color": "dark_green",
@@ -245,7 +245,7 @@ class MCSync(discord.Client):
 
         await self.send_discord_message(
             self.chat_channel_name,
-            f"***[God]***: {reply}"
+            f"***@God***: {reply}"
         )
 
     async def list_heartbeat(self):
