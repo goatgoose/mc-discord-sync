@@ -9,7 +9,7 @@ config = json.load(open(f"{mc_discord_dir}/config.json"))
 
 class God:
     MODEL_ID = "meta.llama2-70b-chat-v1"
-    MAX_GEN_LEN = 116
+    MAX_GEN_LEN = 256
 
     def __init__(self):
         self.bedrock = boto3.client(
