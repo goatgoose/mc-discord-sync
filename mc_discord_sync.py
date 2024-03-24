@@ -72,7 +72,7 @@ class MCSync(discord.Client):
         self.list_heartbeat_task = None
         self.last_list_received_time = None
 
-        self.objectives = {"roll"}
+        self.objectives = {"roll", "compass"}
         self.emotes = {}
         with open(f"{mc_discord_dir}/emotes.csv") as emote_file:
             reader = csv.reader(emote_file)
@@ -101,6 +101,12 @@ class MCSync(discord.Client):
         if God.available():
             print("God is available")
             self.god = God()
+
+        self.manhunt_mode = False
+        if "manhunt_mode" in config:
+            self.manhunt_mode = config["manhunt_mode"]
+        if self.manhunt_mode:
+            print("Manhunt mode enabled")
 
     async def send_discord_message(self, channel_name, message):
         for guild in self.guilds:
@@ -187,6 +193,7 @@ class MCSync(discord.Client):
         await self.mc_process.write(f"scoreboard players enable {trigger.username} {trigger.objective}")
 
         message = None
+        public = True
         if trigger.objective in self.emotes:
             emote = self.emotes[trigger.objective]
             message = emote.global_general_message(trigger.username)
@@ -197,10 +204,19 @@ class MCSync(discord.Client):
         elif trigger.objective == "roll":
             roll = random.randint(1, 100)
             message = f"{trigger.username} rolls {roll} (1-100)"
+        elif trigger.objective == "compass":
+            public = False
+            if not self.manhunt_mode:
+                message = "Manhunt mode is disabled."
+            else:
+                message = "Behold: a compass."
+                await self.mc_process.write(f"give {trigger.username} minecraft:compass")
         assert message is not None
 
-        await self.mc_process.write(f"tellraw @a {json.dumps([{'text': message}])}")
-        await self.send_discord_message(self.chat_channel_name, message)
+        selector = "@a" if public else trigger.username
+        await self.mc_process.write(f"tellraw {selector} {json.dumps([{'text': message}])}")
+        if public:
+            await self.send_discord_message(self.chat_channel_name, message)
 
     async def on_whitelist_add(self, whitelist_add):
         if whitelist_add.username:
