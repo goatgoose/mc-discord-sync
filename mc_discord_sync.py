@@ -44,7 +44,7 @@ class Emote:
 
 
 class MCSync(discord.Client):
-    INACTIVE_SHUTDOWN_SECONDS = 20 * 60
+    INACTIVE_SHUTDOWN_SECONDS = 15 * 60
     PRE_INIT_SERVER_HEARTBEAT_SECONDS = 120
     SERVER_HEARTBEAT_SECONDS = 30
 
@@ -70,12 +70,12 @@ class MCSync(discord.Client):
         self.server_data_task = None
         self.shutdown_task = None
         self.init_objectives_task = None
-        self.heartbeat_task = None
-        self.last_server_data_receive_time = None
-        self.list_task = None
 
         self.server_done = False
         self.startup_data = []
+
+        self.heartbeat_task = None
+        self.last_server_data_receive_time = None
 
         self.objectives = {"roll", "compass"}
         self.emotes = {}
@@ -179,7 +179,6 @@ class MCSync(discord.Client):
     async def on_done(self, done):
         print(f"done: {done.init_time}")
         self.server_done = True
-        self.list_task = asyncio.create_task(self.list_players())
         self.shutdown_task = asyncio.create_task(self.inactive_shutdown_timer(self.INACTIVE_SHUTDOWN_SECONDS))
         self.init_objectives_task = asyncio.create_task(self.init_objectives())
 
@@ -289,18 +288,14 @@ class MCSync(discord.Client):
             f"***@God***: {reply}"
         )
 
-    async def list_players(self):
-        while True:
-            await self.mc_process.write("list")
-            await asyncio.sleep(self.SERVER_HEARTBEAT_SECONDS)
-
     async def probe_server_heartbeat(self):
         self.last_server_data_receive_time = time.time()
         while True:
             if self.server_done:
+                await self.mc_process.write("list")
                 heartbeat_seconds = self.SERVER_HEARTBEAT_SECONDS
             else:
-                heartbeat_seconds = self.PRE_INIT_SERVER_HEARTBEAT_SECONDS
+                heartbeat_seconds= self.PRE_INIT_SERVER_HEARTBEAT_SECONDS
             await asyncio.sleep(heartbeat_seconds)
 
             if time.time() - self.last_server_data_receive_time > heartbeat_seconds * 1.5:
