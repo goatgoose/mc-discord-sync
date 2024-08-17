@@ -334,8 +334,7 @@ class MCSync(discord.Client):
     async def shutdown(self):
         if not self.shutdown_command:
             return
-
-        await asyncio.sleep(5)
+        self.heartbeat_task.cancel()
 
         shutdown_process = await asyncio.create_subprocess_exec(
             self.shutdown_command,
