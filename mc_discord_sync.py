@@ -45,6 +45,7 @@ class Emote:
 
 class MCSync(discord.Client):
     INACTIVE_SHUTDOWN_SECONDS = 15 * 60
+    PRE_INIT_SERVER_HEARTBEAT_SECONDS = 120
     SERVER_HEARTBEAT_SECONDS = 30
 
     def __init__(self, *, intents, **options):
@@ -292,9 +293,12 @@ class MCSync(discord.Client):
         while True:
             if self.server_done:
                 await self.mc_process.write("list")
-            await asyncio.sleep(self.SERVER_HEARTBEAT_SECONDS)
+                heartbeat_seconds = self.SERVER_HEARTBEAT_SECONDS
+            else:
+                heartbeat_seconds= self.PRE_INIT_SERVER_HEARTBEAT_SECONDS
+            await asyncio.sleep(heartbeat_seconds)
 
-            if time.time() - self.last_server_data_receive_time > self.SERVER_HEARTBEAT_SECONDS * 1.5:
+            if time.time() - self.last_server_data_receive_time > heartbeat_seconds * 1.5:
                 await self.send_discord_message(
                     self.commands_channel_name,
                     f"Shutting down {self.category_name} due to losing connection with the server. Use `!start` to "
