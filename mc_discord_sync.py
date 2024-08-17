@@ -252,7 +252,7 @@ class MCSync(discord.Client):
 
     async def on_whitelist_remove(self, whitelist_remove):
         if whitelist_remove.username:
-            message = f"Remove {whitelist_remove.username} from the whitelist."
+            message = f"Removed {whitelist_remove.username} from the whitelist."
         else:
             message = "Player is not whitelisted."
         print(message)
