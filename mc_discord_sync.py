@@ -43,7 +43,7 @@ class Emote:
 
 
 class MCSync(discord.Client):
-    INACTIVE_SHUTDOWN_SECONDS = 10 * 60
+    INACTIVE_SHUTDOWN_SECONDS = 20 * 60
     SERVER_HEARTBEAT_SECONDS = 30
 
     def __init__(self, *, intents, **options):
