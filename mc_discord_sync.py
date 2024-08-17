@@ -8,7 +8,7 @@ import random
 
 from mc_process import MCProcess
 from mc_event import Done, PlayerMessage, PlayerJoin, PlayerLeave, Shutdown, List, \
-    Trigger, WhitelistAdd, WhitelistRemove, GodQuestion
+    Trigger, WhitelistAdd, WhitelistRemove, GodQuestion, RawData
 from bedrock import God
 
 mc_discord_dir = pathlib.Path(__file__).parent.resolve()
@@ -43,7 +43,7 @@ class Emote:
 
 
 class MCSync(discord.Client):
-    INACTIVE_SHUTDOWN_SECONDS = 20 * 60
+    INACTIVE_SHUTDOWN_SECONDS = 15 * 60
     SERVER_HEARTBEAT_SECONDS = 30
 
     def __init__(self, *, intents, **options):
@@ -69,8 +69,11 @@ class MCSync(discord.Client):
         self.shutdown_task = None
         self.init_objectives_task = None
 
-        self.list_heartbeat_task = None
-        self.last_list_received_time = None
+        self.server_done = False
+        self.startup_data = []
+
+        self.heartbeat_task = None
+        self.last_server_data_receive_time = None
 
         self.objectives = {"roll", "compass"}
         self.emotes = {}
@@ -86,6 +89,7 @@ class MCSync(discord.Client):
                 self.objectives.add(command)
 
         self.mc_process = MCProcess(config["launch_command"])
+        self.mc_process.listen_for_event(RawData, self.on_raw_data)
         self.mc_process.listen_for_event(Done, self.on_done)
         self.mc_process.listen_for_event(PlayerMessage, self.on_player_message)
         self.mc_process.listen_for_event(PlayerJoin, self.on_player_join)
@@ -123,6 +127,7 @@ class MCSync(discord.Client):
 
         self.mc_process_task = asyncio.create_task(self.mc_process.poll())
         self.server_data_task = asyncio.create_task(self.push_server_data())
+        self.heartbeat_task = asyncio.create_task(self.probe_server_heartbeat())
 
     async def create_channels(self):
         for guild in self.guilds:
@@ -151,10 +156,13 @@ class MCSync(discord.Client):
                 )
             await asyncio.sleep(1)
 
+    async def on_raw_data(self, raw_data):
+        self.last_server_data_receive_time = time.time()
+
     async def on_done(self, done):
         print(f"done: {done.init_time}")
+        self.server_done = True
         self.shutdown_task = asyncio.create_task(self.inactive_shutdown_timer(self.INACTIVE_SHUTDOWN_SECONDS))
-        self.list_heartbeat_task = asyncio.create_task(self.list_heartbeat())
         self.init_objectives_task = asyncio.create_task(self.init_objectives())
 
     async def on_player_message(self, player_message):
@@ -176,7 +184,6 @@ class MCSync(discord.Client):
 
     async def on_list(self, list_):
         print(f"list: {list_.players}")
-        self.last_list_received_time = time.time()
         self.active_players = list_.players
         if len(self.active_players) == 0 and self.shutdown_task is None:
             self.shutdown_task = asyncio.create_task(self.inactive_shutdown_timer(self.INACTIVE_SHUTDOWN_SECONDS))
@@ -264,10 +271,14 @@ class MCSync(discord.Client):
             f"***@God***: {reply}"
         )
 
-    async def list_heartbeat(self):
-        self.last_list_received_time = time.time()
+    async def probe_server_heartbeat(self):
+        self.last_server_data_receive_time = time.time()
         while True:
-            if time.time() - self.last_list_received_time > self.SERVER_HEARTBEAT_SECONDS * 1.5:
+            if self.server_done:
+                await self.mc_process.write("list")
+            await asyncio.sleep(self.SERVER_HEARTBEAT_SECONDS)
+
+            if time.time() - self.last_server_data_receive_time > self.SERVER_HEARTBEAT_SECONDS * 1.5:
                 await self.send_discord_message(
                     self.commands_channel_name,
                     f"Shutting down {self.category_name} due to losing connection with the server. Use `!start` to "
@@ -275,9 +286,6 @@ class MCSync(discord.Client):
                 )
                 await self.shutdown()
                 return
-
-            await asyncio.sleep(self.SERVER_HEARTBEAT_SECONDS)
-            await self.mc_process.write("list")
 
     async def init_objectives(self):
         for objective in self.objectives:

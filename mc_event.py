@@ -10,6 +10,15 @@ class Event(ABC):
         pass
 
 
+class RawData(Event):
+    def __init__(self, data):
+        self.data = data
+
+    @staticmethod
+    def parse(line: str):
+        return RawData(line)
+
+
 class Done(Event):
     def __init__(self, init_time):
         self.init_time = init_time

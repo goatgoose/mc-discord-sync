@@ -2,7 +2,7 @@ import asyncio
 from typing import Callable, Type
 
 from mc_event import Event, Done, PlayerMessage, PlayerJoin, \
-    PlayerLeave, Shutdown, List, Trigger, WhitelistAdd, WhitelistRemove, GodQuestion
+    PlayerLeave, Shutdown, List, Trigger, WhitelistAdd, WhitelistRemove, GodQuestion, RawData
 
 
 class MCProcess:
@@ -12,6 +12,7 @@ class MCProcess:
         self.process = None
         self.line_buffer = []
         self.events = [
+            RawData,
             Done,
             PlayerMessage,
             PlayerJoin,
@@ -54,8 +55,15 @@ class MCProcess:
             chunk += line + "\n"
             self.line_buffer.pop(0)
 
-        assert len(chunk) > 0
+        if len(chunk) == 0:
+            return None
+
         return chunk
+
+    def get_all(self):
+        data = "\n".join(self.line_buffer)
+        self.line_buffer = []
+        return data
 
     async def _read_stream(self, stream):
         while True:
