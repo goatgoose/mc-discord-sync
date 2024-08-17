@@ -63,6 +63,8 @@ class MCProcess:
     def get_all(self):
         data = "\n".join(self.line_buffer)
         self.line_buffer = []
+        if len(data) == 0:
+            return None
         return data
 
     async def _read_stream(self, stream):

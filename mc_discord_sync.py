@@ -5,6 +5,7 @@ import discord
 import csv
 import pathlib
 import random
+from io import BytesIO
 
 from mc_process import MCProcess
 from mc_event import Done, PlayerMessage, PlayerJoin, PlayerLeave, Shutdown, List, \
@@ -120,6 +121,14 @@ class MCSync(discord.Client):
             assert channel is not None
             await channel.send(message)
 
+    async def send_discord_text_file(self, channel_name, message, file_name):
+        for guild in self.guilds:
+            category = discord.utils.get(guild.categories, name=self.category_name)
+            assert category is not None
+            channel = discord.utils.get(category.text_channels, name=channel_name)
+            assert channel is not None
+            await channel.send(file=discord.File(BytesIO(message.encode("utf-8")), file_name))
+
     async def on_ready(self):
         print("Logged on as", self.user)
 
@@ -147,14 +156,21 @@ class MCSync(discord.Client):
 
     async def push_server_data(self):
         while True:
-            while (chunk := self.mc_process.get_chunk(1950)) is not None:
+            await asyncio.sleep(1)
+
+            chunk = self.mc_process.get_all()
+            if chunk is None:
+                continue
+
+            if len(chunk) > 1950:
+                await self.send_discord_text_file(self.console_channel_name, chunk, "server-data.txt")
+            else:
                 await self.send_discord_message(
                     self.console_channel_name,
                     "```" +
                     chunk +
                     "```"
                 )
-            await asyncio.sleep(1)
 
     async def on_raw_data(self, raw_data):
         self.last_server_data_receive_time = time.time()
