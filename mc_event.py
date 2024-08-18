@@ -199,7 +199,7 @@ class WhitelistRemove(Event):
             return WhitelistRemove(username)
 
         player_not_whitelisted_match = re.match(
-            r"^[^<>]*: Player is not whitelisted",
+            r"^[^<>]*: Player is not whitelisted|^[^<>]*: Could not remove [a-zA-Z0-9_]{2,16} from the whitelist",
             line
         )
         if player_not_whitelisted_match:
