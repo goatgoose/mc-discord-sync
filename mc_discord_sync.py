@@ -71,6 +71,7 @@ class MCSync(discord.Client):
         self.init_objectives_task = None
 
         self.server_done = False
+        self.server_shutdown = False
         self.startup_data = []
 
         self.heartbeat_task = None
@@ -301,6 +302,9 @@ class MCSync(discord.Client):
                 heartbeat_seconds = self.PRE_INIT_SERVER_HEARTBEAT_SECONDS
             await asyncio.sleep(heartbeat_seconds)
 
+            if self.server_shutdown:
+                return
+
             if time.time() - self.last_server_data_receive_time > heartbeat_seconds * 1.5:
                 await self.send_discord_message(
                     self.commands_channel_name,
@@ -337,8 +341,9 @@ class MCSync(discord.Client):
     async def shutdown(self):
         if not self.shutdown_command:
             return
-
-        self.heartbeat_task.cancel()
+        if self.server_shutdown:
+            return
+        self.server_shutdown = True
 
         # Make sure everything finishes saving before shutting down.
         await asyncio.sleep(30)
