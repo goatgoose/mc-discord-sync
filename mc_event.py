@@ -108,7 +108,7 @@ class List(Event):
     @staticmethod
     def from_v12(line: str):
         # [01:31:07] [Server thread/INFO] [minecraft/DedicatedServer]: goatgoose1142
-        match = re.match(r"^[^<>]*: (.*)", line)
+        match = re.match(r"^[^<>]*:(.*)", line)
         assert match is not None
         players_list = match.group(1)
         logging.info(f"v12 player list: {players_list}")
