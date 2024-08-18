@@ -83,7 +83,6 @@ class MCProcess:
             self.line_buffer.append(line)
 
             if v12_list_indicated:
-                logging.info(f"next line after v12 indicator: {line}")
                 list_event = List.from_v12(line)
                 for callback in self.event_callbacks[List]:
                     self.spawn_task(callback(list_event))
