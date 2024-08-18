@@ -44,7 +44,6 @@ class Emote:
 
 
 class MCSync(discord.Client):
-    INACTIVE_SHUTDOWN_SECONDS = 15 * 60
     PRE_INIT_SERVER_HEARTBEAT_SECONDS = 120
     SERVER_HEARTBEAT_SECONDS = 30
 
@@ -114,6 +113,10 @@ class MCSync(discord.Client):
         if self.manhunt_mode:
             print("Manhunt mode enabled")
 
+        self.inactive_shutdown_seconds = 10 * 60
+        if "inactive_shutdown_seconds" in config:
+            self.inactive_shutdown_seconds = config["inactive_shutdown_seconds"]
+
     async def send_discord_message(self, channel_name, message):
         for guild in self.guilds:
             category = discord.utils.get(guild.categories, name=self.category_name)
@@ -179,7 +182,7 @@ class MCSync(discord.Client):
     async def on_done(self, done):
         print(f"done: {done.init_time}")
         self.server_done = True
-        self.shutdown_task = asyncio.create_task(self.inactive_shutdown_timer(self.INACTIVE_SHUTDOWN_SECONDS))
+        self.shutdown_task = asyncio.create_task(self.inactive_shutdown_timer(self.inactive_shutdown_seconds))
         self.init_objectives_task = asyncio.create_task(self.init_objectives())
 
     async def on_player_message(self, player_message):
@@ -203,7 +206,7 @@ class MCSync(discord.Client):
         print(f"list: {list_.players}")
         self.active_players = list_.players
         if len(self.active_players) == 0 and self.shutdown_task is None:
-            self.shutdown_task = asyncio.create_task(self.inactive_shutdown_timer(self.INACTIVE_SHUTDOWN_SECONDS))
+            self.shutdown_task = asyncio.create_task(self.inactive_shutdown_timer(self.inactive_shutdown_seconds))
         elif len(self.active_players) > 0 and self.shutdown_task is not None:
             self.shutdown_task.cancel()
             self.shutdown_task = None
@@ -295,7 +298,7 @@ class MCSync(discord.Client):
                 await self.mc_process.write("list")
                 heartbeat_seconds = self.SERVER_HEARTBEAT_SECONDS
             else:
-                heartbeat_seconds= self.PRE_INIT_SERVER_HEARTBEAT_SECONDS
+                heartbeat_seconds = self.PRE_INIT_SERVER_HEARTBEAT_SECONDS
             await asyncio.sleep(heartbeat_seconds)
 
             if time.time() - self.last_server_data_receive_time > heartbeat_seconds * 1.5:
@@ -347,6 +350,7 @@ class MCSync(discord.Client):
             print(stdout)
         if stderr:
             print(stderr)
+        await self.close()
 
     async def send_server_chat_message(self, message):
         formatted_message = json.dumps([
@@ -402,7 +406,7 @@ class MCSync(discord.Client):
                 await message.channel.send(
                     f"Stopping {self.category_name}.\n"
                     f"> Note: manually stopping the server is no longer necessary. The server will now automatically "
-                    f"shutdown after {self.INACTIVE_SHUTDOWN_SECONDS / 60} minutes of inactivity."
+                    f"shutdown after {self.inactive_shutdown_seconds / 60} minutes of inactivity."
                 )
                 await self.start_shutdown()
             if command == "kill":
