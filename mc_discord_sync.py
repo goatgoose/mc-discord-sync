@@ -355,9 +355,10 @@ class MCSync(discord.Client):
             return
         self.server_shutdown = True
 
-        # Make sure everything finishes saving before shutting down.
+        logging.info("Waiting for world to save...")
         await asyncio.sleep(30)
 
+        logging.info("Executing shutdown script")
         shutdown_process = await asyncio.create_subprocess_exec(
             self.shutdown_command,
             stdout=asyncio.subprocess.PIPE,

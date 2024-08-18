@@ -85,7 +85,7 @@ class Shutdown(Event):
 
     @staticmethod
     def parse(line: str):
-        match = re.match(r"^[^<>*]*: All dimensions are saved|^[^<>*]* Stopping server", line)
+        match = re.match(r"^[^<>*]*: All dimensions are saved|^[^<>*]*: Stopping server", line)
         if match:
             return Shutdown()
         return None
