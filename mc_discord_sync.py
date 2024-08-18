@@ -340,8 +340,8 @@ class MCSync(discord.Client):
 
         self.heartbeat_task.cancel()
 
-        # Make sure everything finished saving before shutting down.
-        await asyncio.sleep(5)
+        # Make sure everything finishes saving before shutting down.
+        await asyncio.sleep(30)
 
         shutdown_process = await asyncio.create_subprocess_exec(
             self.shutdown_command,
