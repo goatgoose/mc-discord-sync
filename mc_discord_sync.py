@@ -54,7 +54,7 @@ class MCSync(discord.Client):
 
         logging.basicConfig(
             format="[%(asctime)s.%(msecs)03d] [%(filename)s:%(lineno)d] [%(levelname)s] %(message)s",
-            filename="log/log.txt",
+            filename="logs/log.txt",
             level=logging.INFO
         )
         logging.getLogger().addHandler(logging.StreamHandler())
