@@ -2,7 +2,7 @@ import asyncio
 from typing import Callable, Type
 
 from mc_event import Event, Done, PlayerMessage, PlayerJoin, \
-    PlayerLeave, Shutdown, List, Trigger, WhitelistAdd, WhitelistRemove, GodQuestion, RawData
+    PlayerLeave, Shutdown, List, Trigger, WhitelistAdd, WhitelistRemove, GodQuestion, RawData, V12ListIndicator
 
 
 class MCProcess:
@@ -19,6 +19,7 @@ class MCProcess:
             PlayerLeave,
             Shutdown,
             List,
+            V12ListIndicator,
             Trigger,
             WhitelistAdd,
             WhitelistRemove,
@@ -68,6 +69,7 @@ class MCProcess:
         return data
 
     async def _read_stream(self, stream):
+        v12_list_indicated = False
         while True:
             try:
                 line = await stream.readline()
@@ -79,11 +81,19 @@ class MCProcess:
             line = line.decode().strip()
             self.line_buffer.append(line)
 
+            if v12_list_indicated:
+                list_event = List.from_v12(line)
+                for callback in self.event_callbacks[List]:
+                    self.spawn_task(callback(list_event))
+                v12_list_indicated = False
+
             for event in self.events:
                 parsed = event.parse(line)
                 if parsed:
                     for callback in self.event_callbacks[event]:
                         self.spawn_task(callback(parsed))
+                    if event == V12ListIndicator:
+                        v12_list_indicated = True
 
     async def poll(self):
         self.process = await asyncio.create_subprocess_exec(

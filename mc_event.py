@@ -98,13 +98,36 @@ class List(Event):
     def parse(line: str):
         match = re.match(r"^[^<>]*: There are [0-9]+ of a max of [0-9]+ players online:(.*)", line)
         if match:
-            players = match.group(1)
-            if not players:
+            players_list = match.group(1)
+            if not players_list:
                 return List([])
 
-            players = players.split(",")
-            players = [player.strip() for player in players]
-            return List(players)
+            return List(List._parse_players_list(players_list))
+
+    @staticmethod
+    def from_v12(line: str):
+        # [01:31:07] [Server thread/INFO] [minecraft/DedicatedServer]: goatgoose1142
+        match = re.match(r"^[^<>]*: (.*)", line)
+        assert match is not None
+        players_list = match.group(1)
+        if not players_list:
+            return List([])
+
+        return List(List._parse_players_list(players_list))
+
+    @staticmethod
+    def _parse_players_list(players_list: str):
+        players = players_list.split(",")
+        return [player.strip() for player in players]
+
+
+class V12ListIndicator(Event):
+    @staticmethod
+    def parse(line: str):
+        # [01:31:07] [Server thread/INFO] [minecraft/DedicatedServer]: There are 1/20 players online:
+        match = re.match(r"^[^<>]*: There are [0-9]+/[0-9]+ players online:", line)
+        if match:
+            return V12ListIndicator()
 
 
 class Trigger(Event):
