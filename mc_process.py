@@ -1,5 +1,6 @@
 import asyncio
 from typing import Callable, Type
+import logging
 
 from mc_event import Event, Done, PlayerMessage, PlayerJoin, \
     PlayerLeave, Shutdown, List, Trigger, WhitelistAdd, WhitelistRemove, GodQuestion, RawData, V12ListIndicator
@@ -82,7 +83,7 @@ class MCProcess:
             self.line_buffer.append(line)
 
             if v12_list_indicated:
-                print(f"next line after v12 indicator: {line}")
+                logging.info(f"next line after v12 indicator: {line}")
                 list_event = List.from_v12(line)
                 for callback in self.event_callbacks[List]:
                     self.spawn_task(callback(list_event))
