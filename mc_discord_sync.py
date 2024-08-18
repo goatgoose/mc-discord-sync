@@ -6,11 +6,13 @@ import csv
 import pathlib
 import random
 from io import BytesIO
+import logging
 
 from mc_process import MCProcess
 from mc_event import Done, PlayerMessage, PlayerJoin, PlayerLeave, Shutdown, List, \
     Trigger, WhitelistAdd, WhitelistRemove, GodQuestion, RawData
 from bedrock import God
+from util import create_task
 
 mc_discord_dir = pathlib.Path(__file__).parent.resolve()
 config = json.load(open(f"{mc_discord_dir}/config.json"))
@@ -50,6 +52,14 @@ class MCSync(discord.Client):
     def __init__(self, *, intents, **options):
         super().__init__(intents=intents, **options)
 
+        logging.basicConfig(
+            format="[%(asctime)s.%(msecs)03d] [%(filename)s:%(lineno)d] [%(levelname)s] %(message)s",
+            filename="logs/log.txt",
+            level=logging.INFO
+        )
+        logging.getLogger().addHandler(logging.StreamHandler())
+        logging.info("\n\n==================================================\n\n")
+
         self.console_channel_name = "server-console"
         self.chat_channel_name = "chat-sync"
         self.commands_channel_name = "server-commands"
@@ -71,6 +81,7 @@ class MCSync(discord.Client):
         self.init_objectives_task = None
 
         self.server_done = False
+        self.server_shutdown = False
         self.startup_data = []
 
         self.heartbeat_task = None
@@ -104,14 +115,14 @@ class MCSync(discord.Client):
 
         self.god = None
         if God.available():
-            print("God is available")
+            logging.info("God is available")
             self.god = God()
 
         self.manhunt_mode = False
         if "manhunt_mode" in config:
             self.manhunt_mode = config["manhunt_mode"]
         if self.manhunt_mode:
-            print("Manhunt mode enabled")
+            logging.info("Manhunt mode enabled")
 
         self.inactive_shutdown_seconds = 10 * 60
         if "inactive_shutdown_seconds" in config:
@@ -134,19 +145,19 @@ class MCSync(discord.Client):
             await channel.send(file=discord.File(BytesIO(message.encode("utf-8")), file_name))
 
     async def on_ready(self):
-        print("Logged on as", self.user)
+        logging.info(f"Logged on as {self.user}")
 
         await self.create_channels()
 
-        self.mc_process_task = asyncio.create_task(self.mc_process.poll())
-        self.server_data_task = asyncio.create_task(self.push_server_data())
-        self.heartbeat_task = asyncio.create_task(self.probe_server_heartbeat())
+        self.mc_process_task = create_task(self.mc_process.poll())
+        self.server_data_task = create_task(self.push_server_data())
+        self.heartbeat_task = create_task(self.probe_server_heartbeat())
 
     async def create_channels(self):
         for guild in self.guilds:
             category = discord.utils.get(guild.categories, name=self.category_name)
             if not category:
-                print(f"Creating {self.category_name} category")
+                logging.info(f"Creating {self.category_name} category")
                 await guild.create_category(self.category_name)
 
             category = discord.utils.get(guild.categories, name=self.category_name)
@@ -155,7 +166,7 @@ class MCSync(discord.Client):
             for channel_name in self.channel_names:
                 channel = discord.utils.get(category.text_channels, name=channel_name)
                 if not channel:
-                    print(f"Creating {channel_name} channel")
+                    logging.info(f"Creating {channel_name} channel")
                     await category.create_text_channel(channel_name)
 
     async def push_server_data(self):
@@ -180,43 +191,43 @@ class MCSync(discord.Client):
         self.last_server_data_receive_time = time.time()
 
     async def on_done(self, done):
-        print(f"done: {done.init_time}")
+        logging.info(f"done: {done.init_time}")
         self.server_done = True
-        self.shutdown_task = asyncio.create_task(self.inactive_shutdown_timer(self.inactive_shutdown_seconds))
-        self.init_objectives_task = asyncio.create_task(self.init_objectives())
+        self.shutdown_task = create_task(self.inactive_shutdown_timer(self.inactive_shutdown_seconds))
+        self.init_objectives_task = create_task(self.init_objectives())
 
     async def on_player_message(self, player_message):
-        print(f"player message: {player_message.message}")
+        logging.info(f"player message: {player_message.message}")
         await self.send_discord_message(
             self.chat_channel_name,
             "***@" + player_message.username + "***: " + player_message.message
         )
 
     async def on_player_join(self, player_join):
-        print(f"player joined: {player_join.username}")
+        logging.info(f"player joined: {player_join.username}")
         await self.mc_process.write("list")
         for objective in self.objectives:
             await self.mc_process.write(f"scoreboard players enable {player_join.username} {objective}")
 
     async def on_player_leave(self, player_leave):
-        print(f"player left: {player_leave.username}")
+        logging.info(f"player left: {player_leave.username}")
         await self.mc_process.write("list")
 
     async def on_list(self, list_):
-        print(f"list: {list_.players}")
+        logging.info(f"list: {list_.players}")
         self.active_players = list_.players
         if len(self.active_players) == 0 and self.shutdown_task is None:
-            self.shutdown_task = asyncio.create_task(self.inactive_shutdown_timer(self.inactive_shutdown_seconds))
+            self.shutdown_task = create_task(self.inactive_shutdown_timer(self.inactive_shutdown_seconds))
         elif len(self.active_players) > 0 and self.shutdown_task is not None:
             self.shutdown_task.cancel()
             self.shutdown_task = None
 
     async def on_shutdown(self, shutdown):
-        print("shutdown")
+        logging.info("shutdown")
         await self.shutdown()
 
     async def on_trigger(self, trigger):
-        print(f"{trigger.username} triggered {trigger.objective} with {trigger.value}")
+        logging.info(f"{trigger.username} triggered {trigger.objective} with {trigger.value}")
         await self.mc_process.write(f"scoreboard players enable {trigger.username} {trigger.objective}")
 
         message = None
@@ -250,7 +261,7 @@ class MCSync(discord.Client):
             message = f"Added {whitelist_add.username} to the whitelist."
         else:
             message = "Player is already whitelisted."
-        print(message)
+        logging.info(message)
         await self.send_discord_message(self.commands_channel_name, message)
 
     async def on_whitelist_remove(self, whitelist_remove):
@@ -258,13 +269,13 @@ class MCSync(discord.Client):
             message = f"Removed {whitelist_remove.username} from the whitelist."
         else:
             message = "Player is not whitelisted."
-        print(message)
+        logging.info(message)
         await self.send_discord_message(self.commands_channel_name, message)
 
     async def on_god_question(self, god_question):
-        print(f"god message: {god_question.question}")
+        logging.info(f"god message: {god_question.question}")
         if not self.god:
-            print("God not found")
+            logging.info("God not found")
             return
 
         reply = await asyncio.to_thread(self.god.ask, god_question.question)
@@ -301,6 +312,9 @@ class MCSync(discord.Client):
                 heartbeat_seconds = self.PRE_INIT_SERVER_HEARTBEAT_SECONDS
             await asyncio.sleep(heartbeat_seconds)
 
+            if self.server_shutdown:
+                return
+
             if time.time() - self.last_server_data_receive_time > heartbeat_seconds * 1.5:
                 await self.send_discord_message(
                     self.commands_channel_name,
@@ -315,14 +329,14 @@ class MCSync(discord.Client):
             await self.mc_process.write(f"scoreboard objectives add {objective} trigger")
 
     async def inactive_shutdown_timer(self, seconds):
-        print(f"starting shutdown timer: {seconds}")
+        logging.info(f"starting shutdown timer: {seconds}")
         try:
             await asyncio.sleep(seconds)
         except asyncio.CancelledError:
-            print("canceling shutdown timer")
+            logging.info("canceling shutdown timer")
             return
 
-        print("shutdown timer elapsed")
+        logging.info("shutdown timer elapsed")
 
         await self.send_discord_message(
             self.commands_channel_name,
@@ -337,12 +351,14 @@ class MCSync(discord.Client):
     async def shutdown(self):
         if not self.shutdown_command:
             return
+        if self.server_shutdown:
+            return
+        self.server_shutdown = True
 
-        self.heartbeat_task.cancel()
+        logging.info("Waiting for world to save...")
+        await asyncio.sleep(30)
 
-        # Make sure everything finished saving before shutting down.
-        await asyncio.sleep(5)
-
+        logging.info("Executing shutdown script")
         shutdown_process = await asyncio.create_subprocess_exec(
             self.shutdown_command,
             stdout=asyncio.subprocess.PIPE,
@@ -351,9 +367,9 @@ class MCSync(discord.Client):
 
         stdout, stderr = await shutdown_process.communicate()
         if stdout:
-            print(stdout)
+            logging.info(stdout)
         if stderr:
-            print(stderr)
+            logging.info(stderr)
         await self.close()
 
     async def send_server_chat_message(self, message):

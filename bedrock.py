@@ -1,6 +1,7 @@
 import pathlib
 import json
 import boto3
+import logging
 
 
 mc_discord_dir = pathlib.Path(__file__).parent.resolve()
@@ -32,7 +33,7 @@ class God:
             "prompt": prompt,
             "max_gen_len": self.MAX_GEN_LEN,
         })
-        print(body)
+        logging.info(body)
 
         response = self.bedrock.invoke_model(
             body=body,

@@ -1,6 +1,7 @@
 from enum import Enum, auto
 from abc import ABC, abstractmethod
 import re
+import logging
 
 
 class Event(ABC):
@@ -84,7 +85,7 @@ class Shutdown(Event):
 
     @staticmethod
     def parse(line: str):
-        match = re.match(r"^[^<>*]*: All dimensions are saved", line)
+        match = re.match(r"^[^<>*]*: All dimensions are saved|^[^<>*]*: Stopping server", line)
         if match:
             return Shutdown()
         return None
@@ -98,13 +99,36 @@ class List(Event):
     def parse(line: str):
         match = re.match(r"^[^<>]*: There are [0-9]+ of a max of [0-9]+ players online:(.*)", line)
         if match:
-            players = match.group(1)
-            if not players:
+            players_list = match.group(1)
+            if not players_list:
                 return List([])
 
-            players = players.split(",")
-            players = [player.strip() for player in players]
-            return List(players)
+            return List(List._parse_players_list(players_list))
+
+    @staticmethod
+    def from_v12(line: str):
+        # [01:31:07] [Server thread/INFO] [minecraft/DedicatedServer]: goatgoose1142
+        match = re.match(r"^[^<>]*:(.*)", line)
+        assert match is not None
+        players_list = match.group(1)
+        if not players_list:
+            return List([])
+
+        return List(List._parse_players_list(players_list))
+
+    @staticmethod
+    def _parse_players_list(players_list: str):
+        players = players_list.split(",")
+        return [player.strip() for player in players]
+
+
+class V12ListIndicator(Event):
+    @staticmethod
+    def parse(line: str):
+        # [01:31:07] [Server thread/INFO] [minecraft/DedicatedServer]: There are 1/20 players online:
+        match = re.match(r"^[^<>]*: There are [0-9]+/[0-9]+ players online:", line)
+        if match:
+            return V12ListIndicator()
 
 
 class Trigger(Event):
@@ -173,7 +197,7 @@ class WhitelistRemove(Event):
             return WhitelistRemove(username)
 
         player_not_whitelisted_match = re.match(
-            r"^[^<>]*: Player is not whitelisted",
+            r"^[^<>]*: Player is not whitelisted|^[^<>]*: Could not remove [a-zA-Z0-9_]{2,16} from the whitelist",
             line
         )
         if player_not_whitelisted_match:
