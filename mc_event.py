@@ -110,6 +110,7 @@ class List(Event):
         match = re.match(r"^[^<>]*: (.*)", line)
         assert match is not None
         players_list = match.group(1)
+        print(f"v12 player list: {players_list}")
         if not players_list:
             return List([])
 
@@ -127,6 +128,7 @@ class V12ListIndicator(Event):
         # [01:31:07] [Server thread/INFO] [minecraft/DedicatedServer]: There are 1/20 players online:
         match = re.match(r"^[^<>]*: There are [0-9]+/[0-9]+ players online:", line)
         if match:
+            print(f"v12 indicator: {line}")
             return V12ListIndicator()
 
 
