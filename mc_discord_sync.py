@@ -52,14 +52,6 @@ class MCSync(discord.Client):
     def __init__(self, *, intents, **options):
         super().__init__(intents=intents, **options)
 
-        logging.basicConfig(
-            format="[%(asctime)s.%(msecs)03d] [%(filename)s:%(lineno)d] [%(levelname)s] %(message)s",
-            filename="logs/log.txt",
-            level=logging.INFO
-        )
-        logging.getLogger().addHandler(logging.StreamHandler())
-        logging.info("\n\n==================================================\n\n")
-
         self.console_channel_name = "server-console"
         self.chat_channel_name = "chat-sync"
         self.commands_channel_name = "server-commands"
@@ -457,6 +449,14 @@ class MCSync(discord.Client):
                     await message.channel.send(invalid_usage_message)
                     return
 
+
+logging.basicConfig(
+    format="[%(asctime)s.%(msecs)03d] [%(filename)s:%(lineno)d] [%(levelname)s] %(message)s",
+    filename="logs/log.txt",
+    level=logging.INFO
+)
+logging.getLogger().addHandler(logging.StreamHandler())
+logging.info("\n\n==================================================\n\n")
 
 intents = discord.Intents.all()
 client = MCSync(intents=intents)
