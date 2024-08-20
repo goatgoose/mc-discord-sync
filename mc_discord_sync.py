@@ -122,19 +122,25 @@ class MCSync(discord.Client):
 
     async def send_discord_message(self, channel_name, message):
         for guild in self.guilds:
-            category = discord.utils.get(guild.categories, name=self.category_name)
-            assert category is not None
-            channel = discord.utils.get(category.text_channels, name=channel_name)
-            assert channel is not None
-            await channel.send(message)
+            try:
+                category = discord.utils.get(guild.categories, name=self.category_name)
+                assert category is not None
+                channel = discord.utils.get(category.text_channels, name=channel_name)
+                assert channel is not None
+                await channel.send(message)
+            except discord.DiscordException as e:
+                logging.exception(e)
 
     async def send_discord_text_file(self, channel_name, message, file_name):
         for guild in self.guilds:
-            category = discord.utils.get(guild.categories, name=self.category_name)
-            assert category is not None
-            channel = discord.utils.get(category.text_channels, name=channel_name)
-            assert channel is not None
-            await channel.send(file=discord.File(BytesIO(message.encode("utf-8")), file_name))
+            try:
+                category = discord.utils.get(guild.categories, name=self.category_name)
+                assert category is not None
+                channel = discord.utils.get(category.text_channels, name=channel_name)
+                assert channel is not None
+                await channel.send(file=discord.File(BytesIO(message.encode("utf-8")), file_name))
+            except discord.DiscordException as e:
+                logging.exception(e)
 
     async def on_ready(self):
         logging.info(f"Logged on as {self.user}")
@@ -147,19 +153,22 @@ class MCSync(discord.Client):
 
     async def create_channels(self):
         for guild in self.guilds:
-            category = discord.utils.get(guild.categories, name=self.category_name)
-            if not category:
-                logging.info(f"Creating {self.category_name} category")
-                await guild.create_category(self.category_name)
+            try:
+                category = discord.utils.get(guild.categories, name=self.category_name)
+                if not category:
+                    logging.info(f"Creating {self.category_name} category")
+                    await guild.create_category(self.category_name)
 
-            category = discord.utils.get(guild.categories, name=self.category_name)
-            assert category is not None
+                category = discord.utils.get(guild.categories, name=self.category_name)
+                assert category is not None
 
-            for channel_name in self.channel_names:
-                channel = discord.utils.get(category.text_channels, name=channel_name)
-                if not channel:
-                    logging.info(f"Creating {channel_name} channel")
-                    await category.create_text_channel(channel_name)
+                for channel_name in self.channel_names:
+                    channel = discord.utils.get(category.text_channels, name=channel_name)
+                    if not channel:
+                        logging.info(f"Creating {channel_name} channel")
+                        await category.create_text_channel(channel_name)
+            except discord.DiscordException as e:
+                logging.exception(e)
 
     async def push_server_data(self):
         while True:
