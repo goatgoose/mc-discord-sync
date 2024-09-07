@@ -153,7 +153,7 @@ class MCSync(discord.Client):
         self.heartbeat_task = create_task(self.probe_server_heartbeat())
 
         activity = discord.Activity(
-            name=f"the server initialize...",
+            name=f"{self.category_name} initialize...",
             type=discord.ActivityType.watching
         )
         await self.change_presence(status=discord.Status.idle, activity=activity)
@@ -205,7 +205,7 @@ class MCSync(discord.Client):
         self.init_objectives_task = create_task(self.init_objectives())
 
         activity = discord.Activity(
-            name=f"over 0 players",
+            name=f"0 players on {self.category_name}",
             type=discord.ActivityType.watching
         )
         await self.change_presence(status=discord.Status.online, activity=activity)
@@ -254,7 +254,7 @@ class MCSync(discord.Client):
         if self.active_players != list_.players:
             player_count = len(list_.players)
             activity = discord.Activity(
-                name=f"over {player_count} {'player' if player_count == 1 else 'players'}",
+                name=f"{player_count} {'player' if player_count == 1 else 'players'} on {self.category_name}",
                 type=discord.ActivityType.watching
             )
             await self.change_presence(status=discord.Status.online, activity=activity)
