@@ -1,4 +1,5 @@
 import json
+import re
 import time
 import asyncio
 import discord
@@ -210,10 +211,23 @@ class MCSync(discord.Client):
         await self.change_presence(status=discord.Status.online, activity=activity)
 
     async def on_player_message(self, player_message):
-        logging.info(f"player message: {player_message.message}")
+        message = player_message.message
+        logging.info(f"player message: {message}")
+
+        mentioned_users = re.findall(r"@([a-zA-Z0-9_]{2,16})", message)
+        for mentioned_user in mentioned_users:
+            for guild in self.guilds:
+                try:
+                    discord_member = guild.get_member_named(mentioned_user)
+                    if discord_member:
+                        message = message.replace(f"@{mentioned_user}", discord_member.mention)
+                        break
+                except discord.DiscordException as e:
+                    logging.exception(e)
+
         await self.send_discord_message(
             self.chat_channel_name,
-            "***@" + player_message.username + "***: " + player_message.message
+            f"***@{player_message.username}***: {message}"
         )
 
     async def on_player_join(self, player_join):
@@ -413,7 +427,11 @@ class MCSync(discord.Client):
                 "hoverEvent": {
                     "action": "show_text",
                     "contents": "Synced from discord!"
-                }
+                },
+                "clickEvent": {
+                    "action": "suggest_command",
+                    "value": f"@{message.username} "
+                },
             },
             {
                 "text": message.message
