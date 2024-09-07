@@ -209,10 +209,18 @@ class MCSync(discord.Client):
         await self.mc_process.write("list")
         for objective in self.objectives:
             await self.mc_process.write(f"scoreboard players enable {player_join.username} {objective}")
+        await self.send_discord_message(
+            self.chat_channel_name,
+            f"_***@{player_join.username}*** has joined the game._"
+        )
 
     async def on_player_leave(self, player_leave):
         logging.info(f"player left: {player_leave.username}")
         await self.mc_process.write("list")
+        await self.send_discord_message(
+            self.chat_channel_name,
+            f"_***@{player_leave.username}*** has left the game._"
+        )
 
     async def on_list(self, list_):
         logging.info(f"list: {list_.players}")
