@@ -8,6 +8,7 @@ import pathlib
 import random
 from io import BytesIO
 import logging
+from collections import deque
 
 from mc_process import MCProcess
 from mc_event import Done, PlayerMessage, PlayerJoin, PlayerLeave, Shutdown, List, \
@@ -72,6 +73,7 @@ class MCSync(discord.Client):
         self.server_data_task = None
         self.shutdown_task = None
         self.init_objectives_task = None
+        self.message_history = deque(maxlen=30)
 
         self.server_done = False
         self.server_shutdown = False
@@ -214,6 +216,8 @@ class MCSync(discord.Client):
         message = player_message.message
         logging.info(f"player message: {message}")
 
+        self.message_history.append(player_message)
+
         mentioned_users = re.findall(r"@([a-zA-Z0-9_]{2,16})", message)
         for mentioned_user in mentioned_users:
             for guild in self.guilds:
@@ -316,13 +320,17 @@ class MCSync(discord.Client):
         logging.info(message)
         await self.send_discord_message(self.commands_channel_name, message)
 
-    async def on_god_question(self, god_question):
-        logging.info(f"god message: {god_question.question}")
+    async def ask_god(self, god_question):
         if not self.god:
             logging.info("God not found")
             return
 
-        reply = await asyncio.to_thread(self.god.ask, god_question.question)
+        reply = await asyncio.to_thread(
+            self.god.ask,
+            god_question.username,
+            god_question.question,
+            self.message_history
+        )
 
         reply = reply.replace("\"", "")
         reply = reply.strip()
@@ -345,6 +353,10 @@ class MCSync(discord.Client):
             self.chat_channel_name,
             f"***@God***: {reply}"
         )
+
+    async def on_god_question(self, god_question):
+        logging.info(f"god message: {god_question.question}")
+        await self.ask_god(god_question)
 
     async def probe_server_heartbeat(self):
         self.last_server_data_receive_time = time.time()
@@ -455,9 +467,13 @@ class MCSync(discord.Client):
             return
 
         if message.channel.name == self.chat_channel_name:
-            await self.send_server_chat_message(
-                ServerMessage(message.author, message.content)
-            )
+            server_message = ServerMessage(message.author, message.content)
+            self.message_history.append(server_message)
+            await self.send_server_chat_message(server_message)
+
+            if message.content.lower().startswith("god"):
+                await self.ask_god(GodQuestion(message.author, message.content))
+
             return
 
         if message.channel.name == self.commands_channel_name:

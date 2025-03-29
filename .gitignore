@@ -7,4 +7,4 @@ server
 start_server.sh
 shutdown.sh
 logs/log.txt
-
+god_prompt.txt

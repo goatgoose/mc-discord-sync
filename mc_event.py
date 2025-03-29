@@ -217,7 +217,5 @@ class GodQuestion(Event):
 
         if not player_message.message.lower().startswith("god"):
             return None
-        if not player_message.message.lower().endswith("?"):
-            return None
 
         return GodQuestion(player_message.username, player_message.message)
