@@ -334,6 +334,7 @@ class MCSync(discord.Client):
 
         reply = reply.replace("\"", "")
         reply = reply.strip()
+        self.message_history.append(PlayerMessage("God", reply))
 
         formatted_message = json.dumps([
             "",
