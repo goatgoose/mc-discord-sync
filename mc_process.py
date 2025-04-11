@@ -1,5 +1,5 @@
 import asyncio
-from typing import Callable, Type
+from typing import Callable, Type, Optional
 import logging
 
 from mc_event import Event, Done, PlayerMessage, PlayerJoin, \
@@ -26,9 +26,7 @@ class MCProcess:
             WhitelistRemove,
             GodQuestion
         ]
-        self.event_callbacks: dict[Type[Event], [Callable]] = {
-            event_type: [] for event_type in self.events
-        }
+        self.event_callback: Optional[Callable] = None
         self.tasks = set()
 
     def spawn_task(self, coroutine):
@@ -36,8 +34,8 @@ class MCProcess:
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
 
-    def listen_for_event(self, event_type: Type[Event], callback: Callable):
-        self.event_callbacks[event_type].append(callback)
+    def listen_for_event(self, callback: Callable):
+        self.event_callback = callback
 
     def get_chunk(self, char_limit):
         if len(self.line_buffer) == 0:
@@ -82,19 +80,18 @@ class MCProcess:
             line = line.decode().strip()
             self.line_buffer.append(line)
 
-            if v12_list_indicated:
-                list_event = List.from_v12(line)
-                for callback in self.event_callbacks[List]:
-                    self.spawn_task(callback(list_event))
-                v12_list_indicated = False
+            if self.event_callback is not None:
+                if v12_list_indicated:
+                    list_event = List.from_v12(line)
+                    self.spawn_task(self.event_callback(list_event))
+                    v12_list_indicated = False
 
-            for event in self.events:
-                parsed = event.parse(line)
-                if parsed:
-                    for callback in self.event_callbacks[event]:
-                        self.spawn_task(callback(parsed))
-                    if event == V12ListIndicator:
-                        v12_list_indicated = True
+                for event in self.events:
+                    parsed = event.parse(line)
+                    if parsed:
+                        self.spawn_task(self.event_callback(parsed))
+                        if event == V12ListIndicator:
+                            v12_list_indicated = True
 
     async def poll(self):
         self.process = await asyncio.create_subprocess_exec(

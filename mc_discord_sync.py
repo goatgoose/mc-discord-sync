@@ -12,7 +12,7 @@ from collections import deque
 
 from mc_process import MCProcess
 from mc_event import Done, PlayerMessage, PlayerJoin, PlayerLeave, Shutdown, List, \
-    Trigger, WhitelistAdd, WhitelistRemove, GodQuestion, RawData
+    Trigger, WhitelistAdd, WhitelistRemove, GodQuestion, RawData, Event
 from bedrock import God
 from util import create_task
 
@@ -96,17 +96,7 @@ class MCSync(discord.Client):
                 self.objectives.add(command)
 
         self.mc_process = MCProcess(config["launch_command"])
-        self.mc_process.listen_for_event(RawData, self.on_raw_data)
-        self.mc_process.listen_for_event(Done, self.on_done)
-        self.mc_process.listen_for_event(PlayerMessage, self.on_player_message)
-        self.mc_process.listen_for_event(PlayerJoin, self.on_player_join)
-        self.mc_process.listen_for_event(PlayerLeave, self.on_player_leave)
-        self.mc_process.listen_for_event(List, self.on_list)
-        self.mc_process.listen_for_event(Shutdown, self.on_shutdown)
-        self.mc_process.listen_for_event(Trigger, self.on_trigger)
-        self.mc_process.listen_for_event(WhitelistAdd, self.on_whitelist_add)
-        self.mc_process.listen_for_event(WhitelistRemove, self.on_whitelist_remove)
-        self.mc_process.listen_for_event(GodQuestion, self.on_god_question)
+        self.mc_process.listen_for_event(self.handle_event)
 
         self.god = None
         if God.available():
@@ -196,6 +186,25 @@ class MCSync(discord.Client):
                     chunk +
                     "```"
                 )
+
+    async def handle_event(self, event):
+        handler = {
+            RawData: self.on_raw_data,
+            Done: self.on_done,
+            PlayerMessage: self.on_player_message,
+            PlayerJoin: self.on_player_join,
+            PlayerLeave: self.on_player_leave,
+            List: self.on_list,
+            Shutdown: self.on_shutdown,
+            Trigger: self.on_trigger,
+            WhitelistAdd: self.on_whitelist_add,
+            WhitelistRemove: self.on_whitelist_remove,
+            GodQuestion: self.on_god_question,
+        }.get(type(event))
+        if handler is None:
+            return
+
+        await handler(event)
 
     async def on_raw_data(self, raw_data):
         self.last_server_data_receive_time = time.time()
