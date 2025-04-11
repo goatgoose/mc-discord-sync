@@ -210,12 +210,16 @@ class GodQuestion(Event):
         self.question = question
 
     @staticmethod
+    def is_godly(line: str):
+        return "god" in line.lower()
+
+    @staticmethod
     def parse(line: str):
         player_message = PlayerMessage.parse(line)
         if player_message is None:
             return None
 
-        if not player_message.message.lower().startswith("god"):
+        if not GodQuestion.is_godly(player_message.message):
             return None
 
         return GodQuestion(player_message.username, player_message.message)

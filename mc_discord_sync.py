@@ -482,7 +482,7 @@ class MCSync(discord.Client):
             server_message = ServerMessage(message.author, message.content)
             await self.send_server_chat_message(server_message)
 
-            if message.content.lower().startswith("god"):
+            if GodQuestion.is_godly(message.content):
                 await self.ask_god(GodQuestion(message.author, message.content))
 
             self.god_context_log.append(f"{message.author} says: {message.content}")
