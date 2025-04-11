@@ -32,11 +32,11 @@ class God:
             return False
         return True
 
-    def ask(self, requester, question, message_history):
-        prompt = f"{requester} asks: {question}\n\n"
-        prompt += "The following messages were exchanged on the server prior to this question:\n"
-        for message in message_history:
-            prompt += f"> {message.username}: {message.message}\n"
+    def ask(self, requester, statement, context_log):
+        prompt = f"{requester} says: {statement}\n\n"
+        prompt += "The following events occurred on the server prior to this statement:\n"
+        for message in context_log:
+            prompt += f"> {message}\n"
 
         response = self.bedrock.invoke_flow(
             flowAliasIdentifier=self.flow_alias_id,

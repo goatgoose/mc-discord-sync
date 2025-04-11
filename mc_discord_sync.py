@@ -73,7 +73,6 @@ class MCSync(discord.Client):
         self.server_data_task = None
         self.shutdown_task = None
         self.init_objectives_task = None
-        self.message_history = deque(maxlen=30)
 
         self.server_done = False
         self.server_shutdown = False
@@ -99,6 +98,7 @@ class MCSync(discord.Client):
         self.mc_process.listen_for_event(self.handle_event)
 
         self.god = None
+        self.god_context_log = deque(maxlen=40)
         if God.available():
             logging.info("God is available")
             self.god = God()
@@ -224,8 +224,7 @@ class MCSync(discord.Client):
     async def on_player_message(self, player_message):
         message = player_message.message
         logging.info(f"player message: {message}")
-
-        self.message_history.append(player_message)
+        self.god_context_log.append(f"{player_message.username} says: {message}")
 
         mentioned_users = re.findall(r"@([a-zA-Z0-9_]{2,16})", message)
         for mentioned_user in mentioned_users:
@@ -245,6 +244,7 @@ class MCSync(discord.Client):
 
     async def on_player_join(self, player_join):
         logging.info(f"player joined: {player_join.username}")
+        self.god_context_log.append(f"{player_join.username} joined the server")
         await self.mc_process.write("list")
         for objective in self.objectives:
             await self.mc_process.write(f"scoreboard players enable {player_join.username} {objective}")
@@ -255,6 +255,7 @@ class MCSync(discord.Client):
 
     async def on_player_leave(self, player_leave):
         logging.info(f"player left: {player_leave.username}")
+        self.god_context_log.append(f"{player_leave.username} left the server")
         await self.mc_process.write("list")
         await self.send_discord_message(
             self.chat_channel_name,
@@ -296,6 +297,7 @@ class MCSync(discord.Client):
                 player_index = trigger.value - 1
                 if 0 <= player_index < len(self.active_players):
                     message = emote.global_target_message(trigger.username, self.active_players[player_index])
+                    self.god_context_log.append(message)
         elif trigger.objective == "roll":
             roll = random.randint(1, 100)
             message = f"{trigger.username} rolls {roll} (1-100)"
@@ -338,12 +340,12 @@ class MCSync(discord.Client):
             self.god.ask,
             god_question.username,
             god_question.question,
-            self.message_history
+            self.god_context_log
         )
 
         reply = reply.replace("\"", "")
         reply = reply.strip()
-        self.message_history.append(PlayerMessage("God", reply))
+        self.god_context_log.append(f"God says: {reply}")
 
         formatted_message = json.dumps([
             "",
@@ -478,12 +480,12 @@ class MCSync(discord.Client):
 
         if message.channel.name == self.chat_channel_name:
             server_message = ServerMessage(message.author, message.content)
-            self.message_history.append(server_message)
             await self.send_server_chat_message(server_message)
 
             if message.content.lower().startswith("god"):
                 await self.ask_god(GodQuestion(message.author, message.content))
 
+            self.god_context_log.append(f"{message.author} says: {message.content}")
             return
 
         if message.channel.name == self.commands_channel_name:
