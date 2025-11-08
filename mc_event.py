@@ -1,8 +1,7 @@
-from enum import Enum, auto
 from abc import ABC, abstractmethod
 import re
-import logging
 
+from config import Config
 
 class Event(ABC):
     @staticmethod
@@ -211,7 +210,7 @@ class GodQuestion(Event):
 
     @staticmethod
     def is_godly(line: str):
-        return "god" in line.lower()
+        return Config.god_alias.lower() in line.lower()
 
     @staticmethod
     def parse(line: str):

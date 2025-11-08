@@ -1,12 +1,6 @@
-import os.path
-import pathlib
-import json
 import boto3
-import logging
 
-
-mc_discord_dir = pathlib.Path(__file__).parent.resolve()
-config = json.load(open(f"{mc_discord_dir}/config.json"))
+from config import Config
 
 
 class God:
@@ -15,20 +9,20 @@ class God:
     def __init__(self):
         self.bedrock = boto3.client(
             "bedrock-agent-runtime",
-            aws_access_key_id=config["aws_access_key_id"],
-            aws_secret_access_key=config["aws_secret_access_key"],
-            region_name=config["aws_region"],
+            aws_access_key_id=Config.aws_access_key_id,
+            aws_secret_access_key=Config.aws_secret_access_key,
+            region_name=Config.aws_region,
         )
-        self.flow_id = config["flow_id"]
-        self.flow_alias_id = config["flow_alias_id"]
+        self.flow_id = Config.flow_id
+        self.flow_alias_id = Config.flow_alias_id
 
     @staticmethod
     def available():
-        if "aws_access_key_id" not in config:
+        if Config.aws_access_key_id is None:
             return False
-        if "flow_id" not in config:
+        if Config.flow_id is None:
             return False
-        if "flow_alias_id" not in config:
+        if Config.flow_alias_id is None:
             return False
         return True
 

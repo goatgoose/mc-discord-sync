@@ -15,9 +15,9 @@ from mc_event import Done, PlayerMessage, PlayerJoin, PlayerLeave, Shutdown, Lis
     Trigger, WhitelistAdd, WhitelistRemove, GodQuestion, RawData, Event
 from bedrock import God
 from util import create_task
+from config import Config
 
 mc_discord_dir = pathlib.Path(__file__).parent.resolve()
-config = json.load(open(f"{mc_discord_dir}/config.json"))
 
 
 class ServerMessage:
@@ -63,10 +63,8 @@ class MCSync(discord.Client):
             self.commands_channel_name,
         ]
 
-        self.category_name = config.get("category")
-        if self.category_name is None:
-            self.category_name = "mc-server"
-        self.shutdown_command = config.get("shutdown_command")
+        self.category_name = Config.category
+        self.shutdown_command = Config.shutdown_command
 
         self.active_players = []
         self.mc_process_task = None
@@ -94,24 +92,20 @@ class MCSync(discord.Client):
                 self.emotes[command] = Emote(command, local_general, local_target, global_general, global_target)
                 self.objectives.add(command)
 
-        self.mc_process = MCProcess(config["launch_command"])
+        self.mc_process = MCProcess(Config.launch_command)
         self.mc_process.listen_for_event(self.handle_event)
 
         self.god = None
         self.god_context_log = deque(maxlen=40)
         if God.available():
-            logging.info("God is available")
+            logging.info(f"God ({Config.god_alias}) is available")
             self.god = God()
 
-        self.manhunt_mode = False
-        if "manhunt_mode" in config:
-            self.manhunt_mode = config["manhunt_mode"]
+        self.manhunt_mode = Config.manhunt_mode
         if self.manhunt_mode:
             logging.info("Manhunt mode enabled")
 
-        self.inactive_shutdown_seconds = 10 * 60
-        if "inactive_shutdown_seconds" in config:
-            self.inactive_shutdown_seconds = config["inactive_shutdown_seconds"]
+        self.inactive_shutdown_seconds = Config.inactive_shutdown_seconds
 
     async def send_discord_message(self, channel_name, message):
         for guild in self.guilds:
@@ -345,12 +339,12 @@ class MCSync(discord.Client):
 
         reply = reply.replace("\"", "")
         reply = reply.strip()
-        self.god_context_log.append(f"God says: {reply}")
+        self.god_context_log.append(f"{Config.god_alias} says: {reply}")
 
         formatted_message = json.dumps([
             "",
             {
-                "text": "<God> ",
+                "text": f"<{Config.god_alias}> ",
                 "bold": True,
                 "italic": True,
                 "color": "dark_green",
@@ -363,7 +357,7 @@ class MCSync(discord.Client):
 
         await self.send_discord_message(
             self.chat_channel_name,
-            f"***@God***: {reply}"
+            f"***@{Config.god_alias}***: {reply}"
         )
 
     async def on_god_question(self, god_question):
@@ -544,4 +538,4 @@ logging.info("\n\n==================================================\n\n")
 
 intents = discord.Intents.all()
 client = MCSync(intents=intents)
-client.run(config["discord_token"])
+client.run(Config.discord_token)
