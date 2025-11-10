@@ -117,6 +117,8 @@ class MCSync(discord.Client):
                 await channel.send(message)
             except discord.DiscordException as e:
                 logging.exception(e)
+            except OSError as e:
+                logging.exception(e)
 
     async def send_discord_text_file(self, channel_name, message, file_name):
         for guild in self.guilds:
