@@ -211,6 +211,11 @@ class MCSync(discord.Client):
         self.shutdown_task = create_task(self.inactive_shutdown_timer(self.inactive_shutdown_seconds))
         self.init_objectives_task = create_task(self.init_objectives())
 
+        await self.send_discord_message(
+            self.commands_channel_name,
+            f"{self.category_name} is ready!"
+        )
+
         activity = discord.Activity(
             name=f"0 players on {self.category_name}",
             type=discord.ActivityType.watching
