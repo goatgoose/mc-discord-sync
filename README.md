@@ -1,6 +1,6 @@
 # mc-discord-sync
 
-mc-discord-sync is a Discord bot that spawns a vanilla Minecraft server, and provides features enables interaction between Discord and Minecraft.
+mc-discord-sync is a Discord bot that spawns a vanilla Minecraft server, and provides features that enable interaction between Discord and Minecraft.
 
 Features include:
 - **Chat sync:** Creates a `#chat-sync` Discord channel, which synchronizes Discord and Minecraft chat messages.
